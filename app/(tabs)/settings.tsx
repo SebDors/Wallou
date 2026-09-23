@@ -1,0 +1,1012 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  TextInput,
+  Alert,
+  Modal,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  Sun,
+  Moon,
+  Smartphone,
+  Sliders,
+  Coins,
+  Download,
+  Upload,
+  AlertOctagon,
+  RefreshCw,
+  ExternalLink,
+  Check,
+  X,
+  Copy,
+} from 'lucide-react-native';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
+import * as Haptics from 'expo-haptics';
+import { useTheme } from '../../src/context/ThemeContext';
+import { useBudget } from '../../src/context/BudgetContext';
+import { Card } from '../../src/components/Card';
+import { validateRatios } from '../../src/services/budgetEngine';
+import { validateAndSanitizeBackup } from '../../src/services/exportImportService';
+import { checkForUpdate, openDownloadPage } from '../../src/services/updateService';
+import { BudgetRatios } from '../../src/types/budget';
+
+const CURRENCIES = [
+  { label: 'Euro (€)', symbol: '€' },
+  { label: 'Dollar ($)', symbol: '$' },
+  { label: 'Livre Sterling (£)', symbol: '£' },
+  { label: 'Franc Suisse (CHF)', symbol: 'CHF' },
+  { label: 'Dollar Canadien (CAD $)', symbol: 'CAD' },
+];
+
+export default function SettingsScreen() {
+  const insets = useSafeAreaInsets();
+  const { theme, themeMode, setThemeMode } = useTheme();
+  const {
+    settings,
+    updateSettings,
+    exportData,
+    importData,
+    resetAllData,
+  } = useBudget();
+
+  // Custom Ratios State
+  const [needsRatio, setNeedsRatio] = useState<string>(
+    String(settings?.ratios?.needs ?? 50)
+  );
+  const [wantsRatio, setWantsRatio] = useState<string>(
+    String(settings?.ratios?.wants ?? 30)
+  );
+  const [savingsRatio, setSavingsRatio] = useState<string>(
+    String(settings?.ratios?.savings ?? 20)
+  );
+  const [ratioError, setRatioError] = useState<string | null>(null);
+
+  // JSON Paste Modal State
+  const [pasteModalVisible, setPasteModalVisible] = useState(false);
+  const [rawJsonInput, setRawJsonInput] = useState('');
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+
+  // Sync settings when loaded
+  useEffect(() => {
+    if (settings?.ratios) {
+      setNeedsRatio(String(settings.ratios.needs));
+      setWantsRatio(String(settings.ratios.wants));
+      setSavingsRatio(String(settings.ratios.savings));
+    }
+  }, [settings?.ratios]);
+
+  // Real-time ratio validation
+  const currentTotalRatio =
+    (parseInt(needsRatio, 10) || 0) +
+    (parseInt(wantsRatio, 10) || 0) +
+    (parseInt(savingsRatio, 10) || 0);
+
+  const isRatioValid = currentTotalRatio === 100;
+
+  const handleSaveRatios = async () => {
+    const n = parseInt(needsRatio, 10);
+    const w = parseInt(wantsRatio, 10);
+    const s = parseInt(savingsRatio, 10);
+
+    const newRatios: BudgetRatios = {
+      needs: n,
+      wants: w,
+      savings: s,
+    };
+
+    const validation = validateRatios(newRatios);
+    if (!validation.isValid) {
+      setRatioError(validation.error || 'Total doit être égal à 100%');
+      try {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      } catch {}
+      return;
+    }
+
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {}
+
+    await updateSettings({ ratios: newRatios });
+    setRatioError(null);
+    Alert.alert('Règles mises à jour', 'Vos ratios 50/30/20 ont été enregistrés.');
+  };
+
+  const handleSelectCurrency = async (curr: string) => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
+    await updateSettings({ currency: curr });
+  };
+
+  const handleExportJSON = async () => {
+    try {
+      const payload = exportData();
+      const jsonString = JSON.stringify(payload, null, 2);
+
+      const isShareAvailable = await Sharing.isAvailableAsync().catch(() => false);
+      const cacheDir = FileSystem.cacheDirectory;
+
+      if (cacheDir && isShareAvailable) {
+        const fileUri = `${cacheDir}gestionapp-backup-${Date.now()}.json`;
+        await FileSystem.writeAsStringAsync(fileUri, jsonString, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'application/json',
+          dialogTitle: 'Exporter ma sauvegarde GestionApp',
+          UTI: 'public.json',
+        });
+      } else {
+        // Fallback: show json modal
+        setRawJsonInput(jsonString);
+        setPasteModalVisible(true);
+      }
+    } catch (err: any) {
+      console.error('Export failed:', err);
+      Alert.alert('Erreur d’export', err?.message || 'Impossible d’exporter les données.');
+    }
+  };
+
+  const handleImportFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/json',
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const fileUri = result.assets[0].uri;
+      const content = await FileSystem.readAsStringAsync(fileUri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      const validation = validateAndSanitizeBackup(content);
+      if (!validation.isValid || !validation.payload) {
+        Alert.alert('Sauvegarde invalide', validation.error || 'Le fichier JSON est incorrect.');
+        return;
+      }
+
+      const txCount = validation.payload.data.transactions.length;
+      const recCount = validation.payload.data.recurring.length;
+
+      Alert.alert(
+        'Confirmer la restauration',
+        `Restaurer ${txCount} opérations et ${recCount} récurrences ? Toutes les données actuelles seront remplacées.`,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Restaurer',
+            style: 'destructive',
+            onPress: async () => {
+              const res = await importData(content);
+              if (res.success) {
+                try {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                } catch {}
+                Alert.alert('Succès', 'Sauvegarde restaurée avec succès.');
+              } else {
+                Alert.alert('Erreur', res.error || 'Échec de la restauration.');
+              }
+            },
+          },
+        ]
+      );
+    } catch (err: any) {
+      console.error('Import failed:', err);
+      Alert.alert('Erreur d’importation', err?.message || 'Impossible de lire le fichier.');
+    }
+  };
+
+  const handleImportPastedJSON = async () => {
+    if (!rawJsonInput.trim()) {
+      Alert.alert('Texte vide', 'Veuillez coller le JSON de sauvegarde.');
+      return;
+    }
+
+    const validation = validateAndSanitizeBackup(rawJsonInput);
+    if (!validation.isValid || !validation.payload) {
+      Alert.alert('Format invalide', validation.error || 'Le contenu n’est pas un JSON valide.');
+      return;
+    }
+
+    const txCount = validation.payload.data.transactions.length;
+    const recCount = validation.payload.data.recurring.length;
+
+    Alert.alert(
+      'Confirmer la restauration',
+      `Restaurer ${txCount} opérations et ${recCount} récurrences ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Restaurer',
+          style: 'destructive',
+          onPress: async () => {
+            const res = await importData(rawJsonInput);
+            if (res.success) {
+              setPasteModalVisible(false);
+              setRawJsonInput('');
+              Alert.alert('Succès', 'Sauvegarde restaurée avec succès.');
+            } else {
+              Alert.alert('Erreur', res.error || 'Échec de la restauration.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleResetData = () => {
+    Alert.alert(
+      'Zone de danger',
+      'Voulez-vous réinitialiser toutes les données ? Cette action est irréversible.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Oui, tout supprimer',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Confirmation définitive',
+              'Êtes-vous absolument sûr ? Toutes vos transactions et récurrences seront effacées.',
+              [
+                { text: 'Non, annuler', style: 'cancel' },
+                {
+                  text: 'DÉTRUIRE LES DONNÉES',
+                  style: 'destructive',
+                  onPress: async () => {
+                    await resetAllData();
+                    Alert.alert('Données effacées', 'L’application a été réinitialisée.');
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  };
+
+  const handleCheckUpdate = async () => {
+    setIsCheckingUpdate(true);
+    try {
+      const release = await checkForUpdate('1.0.0');
+      if (release.isAvailable && release.downloadUrl) {
+        Alert.alert(
+          'Mise à jour disponible !',
+          `Version ${release.version}\n\n${release.releaseNotes}`,
+          [
+            { text: 'Plus tard', style: 'cancel' },
+            {
+              text: 'Télécharger',
+              onPress: () => openDownloadPage(release.downloadUrl),
+            },
+          ]
+        );
+      } else {
+        Alert.alert(
+          'À jour',
+          'Vous utilisez déjà la dernière version de GestionApp (1.0.0).'
+        );
+      }
+    } catch {
+      Alert.alert(
+        'Information',
+        'GestionApp est à jour (Version 1.0.0).'
+      );
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
+
+  return (
+    <ScrollView
+      style={[styles.container, { backgroundColor: theme.colors.bg.canvas }]}
+      contentContainerStyle={[
+        styles.content,
+        {
+          paddingTop: insets.top + theme.spacing.md,
+          paddingBottom: insets.bottom + 80,
+          paddingHorizontal: theme.spacing.lg,
+        },
+      ]}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text
+        style={[
+          theme.typography.title1,
+          { color: theme.colors.text.primary, marginBottom: theme.spacing.lg },
+        ]}
+      >
+        Réglages
+      </Text>
+
+      {/* 1. Appearance / Theme */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.text.secondary }]}>
+        Apparence
+      </Text>
+      <Card style={styles.cardSection}>
+        <View
+          style={[
+            styles.themeSegment,
+            {
+              backgroundColor: theme.colors.bg.surfaceSubtle,
+              borderRadius: theme.radii.full,
+            },
+          ]}
+        >
+          <Pressable
+            onPress={() => setThemeMode('light')}
+            style={[
+              styles.themeOption,
+              themeMode === 'light' && {
+                backgroundColor: theme.colors.bg.surface,
+                borderRadius: theme.radii.full,
+                shadowColor: '#000',
+                shadowOpacity: 0.1,
+                shadowRadius: 2,
+                elevation: 2,
+              },
+            ]}
+          >
+            <Sun
+              size={16}
+              color={
+                themeMode === 'light'
+                  ? theme.colors.text.primary
+                  : theme.colors.text.muted
+              }
+            />
+            <Text
+              style={[
+                theme.typography.caption,
+                {
+                  color:
+                    themeMode === 'light'
+                      ? theme.colors.text.primary
+                      : theme.colors.text.muted,
+                  fontWeight: '600',
+                  marginLeft: 6,
+                },
+              ]}
+            >
+              Clair
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setThemeMode('dark')}
+            style={[
+              styles.themeOption,
+              themeMode === 'dark' && {
+                backgroundColor: theme.colors.bg.surface,
+                borderRadius: theme.radii.full,
+                shadowColor: '#000',
+                shadowOpacity: 0.1,
+                shadowRadius: 2,
+                elevation: 2,
+              },
+            ]}
+          >
+            <Moon
+              size={16}
+              color={
+                themeMode === 'dark'
+                  ? theme.colors.text.primary
+                  : theme.colors.text.muted
+              }
+            />
+            <Text
+              style={[
+                theme.typography.caption,
+                {
+                  color:
+                    themeMode === 'dark'
+                      ? theme.colors.text.primary
+                      : theme.colors.text.muted,
+                  fontWeight: '600',
+                  marginLeft: 6,
+                },
+              ]}
+            >
+              Sombre
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setThemeMode('system')}
+            style={[
+              styles.themeOption,
+              themeMode === 'system' && {
+                backgroundColor: theme.colors.bg.surface,
+                borderRadius: theme.radii.full,
+                shadowColor: '#000',
+                shadowOpacity: 0.1,
+                shadowRadius: 2,
+                elevation: 2,
+              },
+            ]}
+          >
+            <Smartphone
+              size={16}
+              color={
+                themeMode === 'system'
+                  ? theme.colors.text.primary
+                  : theme.colors.text.muted
+              }
+            />
+            <Text
+              style={[
+                theme.typography.caption,
+                {
+                  color:
+                    themeMode === 'system'
+                      ? theme.colors.text.primary
+                      : theme.colors.text.muted,
+                  fontWeight: '600',
+                  marginLeft: 6,
+                },
+              ]}
+            >
+              Système
+            </Text>
+          </Pressable>
+        </View>
+      </Card>
+
+      {/* 2. Devise */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.text.secondary, marginTop: 16 }]}>
+        Devise
+      </Text>
+      <Card style={styles.cardSection}>
+        <View style={styles.currencyRow}>
+          {CURRENCIES.map((c) => {
+            const isSelected = (settings?.currency || '€') === c.symbol;
+            return (
+              <Pressable
+                key={c.symbol}
+                onPress={() => handleSelectCurrency(c.symbol)}
+                style={[
+                  styles.currencyBtn,
+                  {
+                    backgroundColor: isSelected
+                      ? theme.colors.pillar.savings
+                      : theme.colors.bg.surfaceSubtle,
+                    borderRadius: theme.radii.md,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    theme.typography.caption,
+                    {
+                      color: isSelected ? '#FFFFFF' : theme.colors.text.primary,
+                      fontWeight: isSelected ? '700' : '500',
+                    },
+                  ]}
+                >
+                  {c.symbol}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </Card>
+
+      {/* 3. Budget Ratios Customizer (50/30/20) */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.text.secondary, marginTop: 16 }]}>
+        Règle d'allocation budgétaire
+      </Text>
+      <Card style={styles.cardSection}>
+        <View style={styles.ratiosInputsRow}>
+          <View style={styles.ratioInputCol}>
+            <Text style={[theme.typography.caption, { color: theme.colors.pillar.needs, fontWeight: '700' }]}>
+              Besoins
+            </Text>
+            <TextInput
+              value={needsRatio}
+              onChangeText={setNeedsRatio}
+              keyboardType="number-pad"
+              style={[
+                styles.ratioInput,
+                {
+                  backgroundColor: theme.colors.bg.surfaceSubtle,
+                  borderColor: theme.colors.border.subtle,
+                  color: theme.colors.text.primary,
+                  borderRadius: theme.radii.md,
+                },
+              ]}
+            />
+            <Text style={[theme.typography.caption, { color: theme.colors.text.secondary, textAlign: 'center', marginTop: 2 }]}>
+              %
+            </Text>
+          </View>
+
+          <View style={styles.ratioInputCol}>
+            <Text style={[theme.typography.caption, { color: theme.colors.pillar.wants, fontWeight: '700' }]}>
+              Envies
+            </Text>
+            <TextInput
+              value={wantsRatio}
+              onChangeText={setWantsRatio}
+              keyboardType="number-pad"
+              style={[
+                styles.ratioInput,
+                {
+                  backgroundColor: theme.colors.bg.surfaceSubtle,
+                  borderColor: theme.colors.border.subtle,
+                  color: theme.colors.text.primary,
+                  borderRadius: theme.radii.md,
+                },
+              ]}
+            />
+            <Text style={[theme.typography.caption, { color: theme.colors.text.secondary, textAlign: 'center', marginTop: 2 }]}>
+              %
+            </Text>
+          </View>
+
+          <View style={styles.ratioInputCol}>
+            <Text style={[theme.typography.caption, { color: theme.colors.pillar.savings, fontWeight: '700' }]}>
+              Épargne
+            </Text>
+            <TextInput
+              value={savingsRatio}
+              onChangeText={setSavingsRatio}
+              keyboardType="number-pad"
+              style={[
+                styles.ratioInput,
+                {
+                  backgroundColor: theme.colors.bg.surfaceSubtle,
+                  borderColor: theme.colors.border.subtle,
+                  color: theme.colors.text.primary,
+                  borderRadius: theme.radii.md,
+                },
+              ]}
+            />
+            <Text style={[theme.typography.caption, { color: theme.colors.text.secondary, textAlign: 'center', marginTop: 2 }]}>
+              %
+            </Text>
+          </View>
+        </View>
+
+        {/* Real-time sum badge */}
+        <View
+          style={[
+            styles.totalBadge,
+            {
+              backgroundColor: isRatioValid
+                ? theme.colors.pillar.needsBg
+                : theme.colors.status.overrunBg,
+              borderRadius: theme.radii.sm,
+              marginTop: 12,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              theme.typography.caption,
+              {
+                color: isRatioValid
+                  ? theme.colors.pillar.needs
+                  : theme.colors.status.overrun,
+                fontWeight: '700',
+              },
+            ]}
+          >
+            Total : {currentTotalRatio}% {isRatioValid ? '✓ (Égal à 100%)' : '✗ (Doit être égal à 100%)'}
+          </Text>
+        </View>
+
+        {ratioError ? (
+          <Text style={[theme.typography.caption, { color: theme.colors.status.overrun, marginTop: 4 }]}>
+            {ratioError}
+          </Text>
+        ) : null}
+
+        <Pressable
+          onPress={handleSaveRatios}
+          disabled={!isRatioValid}
+          style={({ pressed }) => [
+            styles.saveRatiosBtn,
+            {
+              backgroundColor: isRatioValid
+                ? theme.colors.pillar.savings
+                : theme.colors.bg.surfaceSubtle,
+              borderRadius: theme.radii.md,
+              opacity: pressed && isRatioValid ? 0.8 : 1,
+              marginTop: 12,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              theme.typography.body,
+              {
+                color: isRatioValid ? '#FFFFFF' : theme.colors.text.muted,
+                fontWeight: '700',
+              },
+            ]}
+          >
+            Enregistrer les ratios
+          </Text>
+        </Pressable>
+      </Card>
+
+      {/* 4. Données & Sauvegardes (Local-First) */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.text.secondary, marginTop: 16 }]}>
+        Sauvegarde & Données (100% Hors-Ligne)
+      </Text>
+      <Card style={styles.cardSection}>
+        <Pressable
+          onPress={handleExportJSON}
+          style={({ pressed }) => [
+            styles.actionRow,
+            {
+              borderBottomWidth: 1,
+              borderBottomColor: theme.colors.border.subtle,
+              opacity: pressed ? 0.7 : 1,
+            },
+          ]}
+        >
+          <View style={styles.actionLeft}>
+            <Download size={18} color={theme.colors.pillar.savings} />
+            <View style={{ marginLeft: 12 }}>
+              <Text style={[theme.typography.body, { color: theme.colors.text.primary, fontWeight: '600' }]}>
+                Exporter les données (JSON)
+              </Text>
+              <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
+                Sauvegarde hermétique et partageable
+              </Text>
+            </View>
+          </View>
+        </Pressable>
+
+        <Pressable
+          onPress={handleImportFile}
+          style={({ pressed }) => [
+            styles.actionRow,
+            {
+              borderBottomWidth: 1,
+              borderBottomColor: theme.colors.border.subtle,
+              opacity: pressed ? 0.7 : 1,
+            },
+          ]}
+        >
+          <View style={styles.actionLeft}>
+            <Upload size={18} color={theme.colors.pillar.needs} />
+            <View style={{ marginLeft: 12 }}>
+              <Text style={[theme.typography.body, { color: theme.colors.text.primary, fontWeight: '600' }]}>
+                Importer une sauvegarde (Fichier)
+              </Text>
+              <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
+                Sélectionnez un fichier JSON de sauvegarde
+              </Text>
+            </View>
+          </View>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            setRawJsonInput('');
+            setPasteModalVisible(true);
+          }}
+          style={({ pressed }) => [
+            styles.actionRow,
+            { opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <View style={styles.actionLeft}>
+            <Copy size={18} color={theme.colors.pillar.wants} />
+            <View style={{ marginLeft: 12 }}>
+              <Text style={[theme.typography.body, { color: theme.colors.text.primary, fontWeight: '600' }]}>
+                Coller / Visualiser le JSON
+              </Text>
+              <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
+                Import textuel direct sans passer par les fichiers
+              </Text>
+            </View>
+          </View>
+        </Pressable>
+      </Card>
+
+      {/* 5. Zone de Danger */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.status.overrun, marginTop: 16 }]}>
+        Zone de danger
+      </Text>
+      <Card style={styles.cardSection}>
+        <Pressable
+          onPress={handleResetData}
+          style={({ pressed }) => [
+            styles.actionRow,
+            { opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <View style={styles.actionLeft}>
+            <AlertOctagon size={18} color={theme.colors.status.overrun} />
+            <View style={{ marginLeft: 12 }}>
+              <Text style={[theme.typography.body, { color: theme.colors.status.overrun, fontWeight: '700' }]}>
+                Réinitialiser l'application
+              </Text>
+              <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
+                Efface toutes les opérations, récurrences et paramètres
+              </Text>
+            </View>
+          </View>
+        </Pressable>
+      </Card>
+
+      {/* 6. À Propos & Mises à Jour */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.text.secondary, marginTop: 16 }]}>
+        À propos
+      </Text>
+      <Card style={styles.cardSection}>
+        <View style={styles.aboutRow}>
+          <Text style={[theme.typography.body, { color: theme.colors.text.primary, fontWeight: '600' }]}>
+            GestionApp
+          </Text>
+          <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
+            v1.0.0 (Build 1)
+          </Text>
+        </View>
+
+        <Pressable
+          onPress={handleCheckUpdate}
+          disabled={isCheckingUpdate}
+          style={({ pressed }) => [
+            styles.updateBtn,
+            {
+              backgroundColor: theme.colors.bg.surfaceSubtle,
+              borderRadius: theme.radii.md,
+              opacity: pressed ? 0.7 : 1,
+              marginTop: 12,
+            },
+          ]}
+        >
+          <RefreshCw
+            size={16}
+            color={theme.colors.text.primary}
+            style={isCheckingUpdate ? { transform: [{ rotate: '45deg' }] } : undefined}
+          />
+          <Text
+            style={[
+              theme.typography.caption,
+              { color: theme.colors.text.primary, fontWeight: '600', marginLeft: 8 },
+            ]}
+          >
+            {isCheckingUpdate ? 'Vérification...' : 'Vérifier les mises à jour'}
+          </Text>
+        </Pressable>
+      </Card>
+
+      {/* JSON Import/Export Modal */}
+      {pasteModalVisible && (
+        <Modal
+          visible={pasteModalVisible}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setPasteModalVisible(false)}
+        >
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={() => setPasteModalVisible(false)}
+          >
+            <Pressable
+              style={[
+                styles.pasteSheet,
+                {
+                  backgroundColor: theme.colors.bg.surface,
+                  borderColor: theme.colors.border.subtle,
+                  borderRadius: theme.radii.xl,
+                },
+              ]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View style={styles.modalHeader}>
+                <Text style={[theme.typography.title2, { color: theme.colors.text.primary }]}>
+                  Données JSON de sauvegarde
+                </Text>
+                <Pressable onPress={() => setPasteModalVisible(false)}>
+                  <X size={20} color={theme.colors.text.secondary} />
+                </Pressable>
+              </View>
+
+              <TextInput
+                value={rawJsonInput}
+                onChangeText={setRawJsonInput}
+                multiline
+                placeholder="Collez ici votre JSON de sauvegarde..."
+                placeholderTextColor={theme.colors.text.muted}
+                style={[
+                  styles.pasteInput,
+                  {
+                    backgroundColor: theme.colors.bg.surfaceSubtle,
+                    borderColor: theme.colors.border.subtle,
+                    color: theme.colors.text.primary,
+                    borderRadius: theme.radii.md,
+                  },
+                ]}
+              />
+
+              <View style={styles.modalActions}>
+                <Pressable
+                  onPress={() => setPasteModalVisible(false)}
+                  style={[
+                    styles.cancelBtn,
+                    {
+                      backgroundColor: theme.colors.bg.surfaceSubtle,
+                      borderRadius: theme.radii.md,
+                    },
+                  ]}
+                >
+                  <Text style={[theme.typography.body, { color: theme.colors.text.secondary }]}>
+                    Fermer
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={handleImportPastedJSON}
+                  style={[
+                    styles.confirmBtn,
+                    {
+                      backgroundColor: theme.colors.pillar.savings,
+                      borderRadius: theme.radii.md,
+                    },
+                  ]}
+                >
+                  <Text style={[theme.typography.body, { color: '#FFF', fontWeight: '700' }]}>
+                    Restaurer
+                  </Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  content: {},
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  cardSection: {
+    marginBottom: 8,
+  },
+  themeSegment: {
+    flexDirection: 'row',
+    padding: 3,
+  },
+  themeOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  currencyRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  currencyBtn: {
+    flex: 1,
+    minWidth: 50,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ratiosInputsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  ratioInputCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  ratioInput: {
+    width: '100%',
+    height: 44,
+    borderWidth: 1,
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  totalBadge: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+  },
+  saveRatiosBtn: {
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+  },
+  actionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  aboutRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  updateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  pasteSheet: {
+    width: '100%',
+    maxWidth: 420,
+    maxHeight: '80%',
+    borderWidth: 1,
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  pasteInput: {
+    height: 200,
+    padding: 12,
+    borderWidth: 1,
+    fontSize: 12,
+    textAlignVertical: 'top',
+    fontFamily: 'monospace',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  cancelBtn: {
+    flex: 1,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmBtn: {
+    flex: 1,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
