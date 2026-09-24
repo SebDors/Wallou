@@ -307,6 +307,10 @@ export default function DashboardScreen() {
           needsSpent={summary.pillars.needs.spent}
           wantsSpent={summary.pillars.wants.spent}
           savingsSpent={summary.pillars.savings.spent}
+          needsAllocated={summary.pillars.needs.allocated}
+          wantsAllocated={summary.pillars.wants.allocated}
+          savingsAllocated={summary.pillars.savings.allocated}
+          ratios={settings?.ratios || { needs: 50, wants: 30, savings: 20 }}
           centerLabel="Dépenses totales"
           centerValue={formatCurrency(summary.totalExpenses, currency)}
           onSelectPillar={(pillar) =>
@@ -314,7 +318,7 @@ export default function DashboardScreen() {
           }
         />
 
-        {/* Mini Legend Row */}
+        {/* Enhanced Legend Row with used part */}
         <View style={styles.legendRow}>
           <Pressable
             onPress={() =>
@@ -322,6 +326,7 @@ export default function DashboardScreen() {
             }
             style={[
               styles.legendItem,
+              { backgroundColor: theme.colors.bg.surfaceSubtle },
               highlightedPillar === 'needs' && {
                 borderColor: theme.colors.pillar.needs,
                 backgroundColor: theme.colors.pillar.needsBg,
@@ -334,14 +339,25 @@ export default function DashboardScreen() {
                 { backgroundColor: theme.colors.pillar.needs },
               ]}
             />
-            <Text
-              style={[
-                theme.typography.caption,
-                { color: theme.colors.text.secondary },
-              ]}
-            >
-              Besoins ({summary.pillars.needs.ratio}%)
-            </Text>
+            <View>
+              <Text
+                style={[
+                  theme.typography.caption,
+                  { color: theme.colors.text.primary, fontWeight: '600' },
+                ]}
+              >
+                Besoins ({summary.pillars.needs.ratio}%)
+              </Text>
+              <Text
+                style={[
+                  theme.typography.caption,
+                  theme.typography.tabularNums,
+                  { color: theme.colors.text.secondary, fontSize: 11, marginTop: 1 },
+                ]}
+              >
+                {formatCurrency(summary.pillars.needs.spent, currency)} / {formatCurrency(summary.pillars.needs.allocated, currency)}
+              </Text>
+            </View>
           </Pressable>
 
           <Pressable
@@ -350,6 +366,7 @@ export default function DashboardScreen() {
             }
             style={[
               styles.legendItem,
+              { backgroundColor: theme.colors.bg.surfaceSubtle },
               highlightedPillar === 'wants' && {
                 borderColor: theme.colors.pillar.wants,
                 backgroundColor: theme.colors.pillar.wantsBg,
@@ -362,14 +379,25 @@ export default function DashboardScreen() {
                 { backgroundColor: theme.colors.pillar.wants },
               ]}
             />
-            <Text
-              style={[
-                theme.typography.caption,
-                { color: theme.colors.text.secondary },
-              ]}
-            >
-              Envies ({summary.pillars.wants.ratio}%)
-            </Text>
+            <View>
+              <Text
+                style={[
+                  theme.typography.caption,
+                  { color: theme.colors.text.primary, fontWeight: '600' },
+                ]}
+              >
+                Envies ({summary.pillars.wants.ratio}%)
+              </Text>
+              <Text
+                style={[
+                  theme.typography.caption,
+                  theme.typography.tabularNums,
+                  { color: theme.colors.text.secondary, fontSize: 11, marginTop: 1 },
+                ]}
+              >
+                {formatCurrency(summary.pillars.wants.spent, currency)} / {formatCurrency(summary.pillars.wants.allocated, currency)}
+              </Text>
+            </View>
           </Pressable>
 
           <Pressable
@@ -378,6 +406,7 @@ export default function DashboardScreen() {
             }
             style={[
               styles.legendItem,
+              { backgroundColor: theme.colors.bg.surfaceSubtle },
               highlightedPillar === 'savings' && {
                 borderColor: theme.colors.pillar.savings,
                 backgroundColor: theme.colors.pillar.savingsBg,
@@ -390,14 +419,25 @@ export default function DashboardScreen() {
                 { backgroundColor: theme.colors.pillar.savings },
               ]}
             />
-            <Text
-              style={[
-                theme.typography.caption,
-                { color: theme.colors.text.secondary },
-              ]}
-            >
-              Épargne ({summary.pillars.savings.ratio}%)
-            </Text>
+            <View>
+              <Text
+                style={[
+                  theme.typography.caption,
+                  { color: theme.colors.text.primary, fontWeight: '600' },
+                ]}
+              >
+                Épargne ({summary.pillars.savings.ratio}%)
+              </Text>
+              <Text
+                style={[
+                  theme.typography.caption,
+                  theme.typography.tabularNums,
+                  { color: theme.colors.text.secondary, fontSize: 11, marginTop: 1 },
+                ]}
+              >
+                {formatCurrency(summary.pillars.savings.spent, currency)} / {formatCurrency(summary.pillars.savings.allocated, currency)}
+              </Text>
+            </View>
           </Pressable>
         </View>
       </View>

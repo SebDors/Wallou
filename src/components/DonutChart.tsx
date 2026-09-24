@@ -8,6 +8,10 @@ export interface DonutChartProps {
   needsSpent: number;
   wantsSpent: number;
   savingsSpent: number;
+  needsAllocated?: number;
+  wantsAllocated?: number;
+  savingsAllocated?: number;
+  ratios?: { needs: number; wants: number; savings: number };
   centerLabel?: string;
   centerValue?: string;
   onSelectPillar?: (pillar: PillarId) => void;
@@ -19,6 +23,10 @@ export const DonutChart: React.FC<DonutChartProps> = ({
   needsSpent,
   wantsSpent,
   savingsSpent,
+  needsAllocated,
+  wantsAllocated,
+  savingsAllocated,
+  ratios = { needs: 50, wants: 30, savings: 20 },
   centerLabel = 'Reste à vivre',
   centerValue,
   onSelectPillar,
@@ -30,32 +38,73 @@ export const DonutChart: React.FC<DonutChartProps> = ({
   const radius = (size - strokeWidth) / 2;
   const center = size / 2;
   const circumference = 2 * Math.PI * radius;
-  const gap = 4; // gap in pixels between segments
+  const gap = 3; // gap in pixels between segments
 
-  const totalSpent = Math.max(0, needsSpent) + Math.max(0, wantsSpent) + Math.max(0, savingsSpent);
-
-  const segments: { pillar: PillarId; amount: number; color: string; percent: number }[] = [
+  // Order requested: Needs (Green, Left) -> Wants (Orange, Bottom/Center) -> Savings (Blue, Right)
+  // Trigonometric / Counter-Clockwise orientation:
+  // Starting at Top (12 o'clock, which is -90deg in standard SVG), CCW means going towards Left (9 o'clock)
+  const pillarConfigs: {
+    pillar: PillarId;
+    spent: number;
+    allocated: number;
+    ratio: number;
+    color: string;
+    lightColor: string;
+  }[] = [
     {
       pillar: 'needs',
-      amount: Math.max(0, needsSpent),
+      spent: Math.max(0, needsSpent),
+      allocated: needsAllocated ?? 0,
+      ratio: ratios.needs,
       color: theme.colors.pillar.needs,
-      percent: totalSpent > 0 ? (Math.max(0, needsSpent) / totalSpent) * 100 : 0,
+      lightColor: theme.colors.pillar.needsBg,
     },
     {
       pillar: 'wants',
-      amount: Math.max(0, wantsSpent),
+      spent: Math.max(0, wantsSpent),
+      allocated: wantsAllocated ?? 0,
+      ratio: ratios.wants,
       color: theme.colors.pillar.wants,
-      percent: totalSpent > 0 ? (Math.max(0, wantsSpent) / totalSpent) * 100 : 0,
+      lightColor: theme.colors.pillar.wantsBg,
     },
     {
       pillar: 'savings',
-      amount: Math.max(0, savingsSpent),
+      spent: Math.max(0, savingsSpent),
+      allocated: savingsAllocated ?? 0,
+      ratio: ratios.savings,
       color: theme.colors.pillar.savings,
-      percent: totalSpent > 0 ? (Math.max(0, savingsSpent) / totalSpent) * 100 : 0,
+      lightColor: theme.colors.pillar.savingsBg,
     },
   ];
 
-  let accumulatedPercent = 0;
+  // Normalized allocation percentages summing to 100
+  const totalRatio = (ratios.needs + ratios.wants + ratios.savings) || 100;
+  const allocationShares = pillarConfigs.map((cfg) => ({
+    ...cfg,
+    allocationPercent: (cfg.ratio / totalRatio) * 100,
+  }));
+
+  // We can calculate each segment's start angle (accumulated)
+  let accumulatedRatio = 0;
+  const segmentsWithPositions = allocationShares.map((seg) => {
+    const startRatio = accumulatedRatio;
+    accumulatedRatio += seg.allocationPercent;
+
+    // What portion of this pillar is spent?
+    // If allocated > 0, spentRatio = min(1, spent / allocated)
+    // If allocated == 0 and spent > 0, we treat it as 100% used of its visual slot
+    const usageFraction = seg.allocated > 0
+      ? Math.min(1, seg.spent / seg.allocated)
+      : (seg.spent > 0 ? 1 : 0);
+
+    const spentPercentOfCircle = (seg.allocationPercent * usageFraction);
+
+    return {
+      ...seg,
+      startRatio,
+      spentPercentOfCircle,
+    };
+  });
 
   return (
     <View style={[styles.container, { width: size, height: size }]}>
@@ -70,35 +119,63 @@ export const DonutChart: React.FC<DonutChartProps> = ({
           fill="transparent"
         />
 
-        {totalSpent > 0 && (
-          <G rotation="-90" origin={`${center}, ${center}`}>
-            {segments.map((seg) => {
-              if (seg.percent <= 0) return null;
+        {/* 
+          Trigonometric / Counter-Clockwise rendering:
+          In SVG, standard circle angles go clockwise with positive dashoffset.
+          Applying scale(-1, 1) around center mirrors horizontally, turning clockwise
+          into counter-clockwise (Left first)!
+          Combined with -90deg rotation, starting at top (12h) goes towards 9h (left, green) -> 6h (wants) -> 3h (savings, right).
+        */}
+        <G rotation="-90" origin={`${center}, ${center}`} scaleX={-1} scaleY={1} x={-size} y={0}>
+          {/* Layer 1: Translucent / lighter allocation slots (50%, 30%, 20%) */}
+          {segmentsWithPositions.map((seg) => {
+            if (seg.allocationPercent <= 0) return null;
+            const strokeLength = (seg.allocationPercent / 100) * circumference;
+            const dashArray = `${Math.max(0, strokeLength - gap)} ${circumference}`;
+            const strokeOffset = -((seg.startRatio / 100) * circumference);
 
-              const strokeLength = (seg.percent / 100) * circumference;
-              const dashArray = `${Math.max(0, strokeLength - gap)} ${circumference}`;
-              const strokeOffset = -((accumulatedPercent / 100) * circumference);
+            return (
+              <Circle
+                key={`alloc-${seg.pillar}`}
+                cx={center}
+                cy={center}
+                r={radius}
+                stroke={seg.color}
+                strokeOpacity={0.22}
+                strokeWidth={strokeWidth}
+                strokeDasharray={dashArray}
+                strokeDashoffset={strokeOffset}
+                strokeLinecap="round"
+                fill="transparent"
+                onPress={() => onSelectPillar?.(seg.pillar)}
+              />
+            );
+          })}
 
-              accumulatedPercent += seg.percent;
+          {/* Layer 2: Real spent progress within the allocated slots */}
+          {segmentsWithPositions.map((seg) => {
+            if (seg.spentPercentOfCircle <= 0) return null;
+            const strokeLength = (seg.spentPercentOfCircle / 100) * circumference;
+            const dashArray = `${Math.max(0, strokeLength - (seg.spentPercentOfCircle >= seg.allocationPercent ? gap : 0))} ${circumference}`;
+            const strokeOffset = -((seg.startRatio / 100) * circumference);
 
-              return (
-                <Circle
-                  key={seg.pillar}
-                  cx={center}
-                  cy={center}
-                  r={radius}
-                  stroke={seg.color}
-                  strokeWidth={strokeWidth}
-                  strokeDasharray={dashArray}
-                  strokeDashoffset={strokeOffset}
-                  strokeLinecap="round"
-                  fill="transparent"
-                  onPress={() => onSelectPillar?.(seg.pillar)}
-                />
-              );
-            })}
-          </G>
-        )}
+            return (
+              <Circle
+                key={`spent-${seg.pillar}`}
+                cx={center}
+                cy={center}
+                r={radius}
+                stroke={seg.color}
+                strokeWidth={strokeWidth}
+                strokeDasharray={dashArray}
+                strokeDashoffset={strokeOffset}
+                strokeLinecap="round"
+                fill="transparent"
+                onPress={() => onSelectPillar?.(seg.pillar)}
+              />
+            );
+          })}
+        </G>
       </Svg>
 
       {/* Center content */}
