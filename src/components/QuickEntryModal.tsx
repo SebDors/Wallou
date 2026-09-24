@@ -9,8 +9,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
+  ScrollView,
 } from 'react-native';
-import { X, ArrowDownCircle, ArrowUpCircle } from 'lucide-react-native';
+import { X, ArrowDownCircle, ArrowUpCircle, Plus } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../context/ThemeContext';
 import { useBudget } from '../context/BudgetContext';
@@ -24,10 +25,13 @@ export interface QuickEntryModalProps {
 
 export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClose }) => {
   const { theme } = useTheme();
-  const { addTransaction, settings } = useBudget();
+  const { addTransaction, settings, categories, addCategory } = useBudget();
 
   const [amountStr, setAmountStr] = useState<string>('0');
   const [title, setTitle] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [isAddingCategory, setIsAddingCategory] = useState<boolean>(false);
+  const [newCategoryName, setNewCategoryName] = useState<string>('');
   const [txType, setTxType] = useState<TransactionType>('expense');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -36,6 +40,9 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
   const resetForm = useCallback(() => {
     setAmountStr('0');
     setTitle('');
+    setSelectedCategory('');
+    setIsAddingCategory(false);
+    setNewCategoryName('');
     setTxType('expense');
     setErrorMessage(null);
   }, []);
@@ -113,13 +120,14 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
     const nowIso = new Date().toISOString();
     const finalTitle = title.trim() || (txType === 'income' ? 'Revenu' : 'Dépense rapide');
     const finalCategory =
-      pillar === 'needs'
+      selectedCategory.trim() ||
+      (pillar === 'needs'
         ? 'Besoins'
         : pillar === 'wants'
         ? 'Envies'
         : pillar === 'savings'
         ? 'Épargne'
-        : 'Revenu';
+        : 'Revenu');
 
     // Instant modal dismiss (< 50ms)
     handleClose();
@@ -323,6 +331,131 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
                 />
               </View>
 
+              {/* Category Selector Chips */}
+              <View style={styles.categorySection}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.categoryScrollContent}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {categories.map((cat) => {
+                    const isSelected = selectedCategory === cat;
+                    return (
+                      <Pressable
+                        key={cat}
+                        onPress={() => setSelectedCategory(isSelected ? '' : cat)}
+                        style={[
+                          styles.categoryChip,
+                          {
+                            backgroundColor: isSelected
+                              ? theme.colors.pillar.savings
+                              : theme.colors.bg.surfaceSubtle,
+                            borderColor: isSelected
+                              ? theme.colors.pillar.savings
+                              : theme.colors.border.subtle,
+                            borderRadius: theme.radii.full,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            theme.typography.caption,
+                            {
+                              color: isSelected ? '#FFFFFF' : theme.colors.text.secondary,
+                              fontWeight: isSelected ? '700' : '500',
+                            },
+                          ]}
+                        >
+                          {cat}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+
+                  {/* Add custom category chip */}
+                  {isAddingCategory ? (
+                    <View style={styles.inlineAddCat}>
+                      <TextInput
+                        value={newCategoryName}
+                        onChangeText={setNewCategoryName}
+                        placeholder="Nom..."
+                        placeholderTextColor={theme.colors.text.muted}
+                        autoFocus
+                        style={[
+                          styles.inlineAddCatInput,
+                          {
+                            color: theme.colors.text.primary,
+                            borderColor: theme.colors.border.subtle,
+                            borderRadius: theme.radii.full,
+                            backgroundColor: theme.colors.bg.surfaceSubtle,
+                          },
+                        ]}
+                      />
+                      <Pressable
+                        onPress={async () => {
+                          const trimmed = newCategoryName.trim();
+                          if (trimmed) {
+                            await addCategory(trimmed);
+                            setSelectedCategory(trimmed);
+                          }
+                          setNewCategoryName('');
+                          setIsAddingCategory(false);
+                        }}
+                        style={[
+                          styles.inlineAddCatBtn,
+                          {
+                            backgroundColor: theme.colors.pillar.savings,
+                            borderRadius: theme.radii.full,
+                          },
+                        ]}
+                      >
+                        <Plus size={14} color="#FFFFFF" />
+                      </Pressable>
+                      <Pressable
+                        onPress={() => {
+                          setNewCategoryName('');
+                          setIsAddingCategory(false);
+                        }}
+                        style={[
+                          styles.inlineAddCatCancelBtn,
+                          {
+                            backgroundColor: theme.colors.bg.surfaceSubtle,
+                            borderRadius: theme.radii.full,
+                          },
+                        ]}
+                      >
+                        <X size={14} color={theme.colors.text.muted} />
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <Pressable
+                      onPress={() => setIsAddingCategory(true)}
+                      style={[
+                        styles.categoryChip,
+                        {
+                          backgroundColor: theme.colors.bg.surfaceSubtle,
+                          borderColor: theme.colors.border.subtle,
+                          borderRadius: theme.radii.full,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                        },
+                      ]}
+                    >
+                      <Plus size={12} color={theme.colors.text.secondary} style={{ marginRight: 4 }} />
+                      <Text
+                        style={[
+                          theme.typography.caption,
+                          { color: theme.colors.text.secondary, fontWeight: '600' },
+                        ]}
+                      >
+                        Ajouter
+                      </Text>
+                    </Pressable>
+                  )}
+                </ScrollView>
+              </View>
+
               {/* Custom Numeric Keypad (Tap 1) */}
               <View style={styles.keypadWrapper}>
                 <NumericKeypad
@@ -508,5 +641,46 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+  categorySection: {
+    marginBottom: 10,
+    height: 36,
+  },
+  categoryScrollContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 2,
+  },
+  categoryChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inlineAddCat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  inlineAddCatInput: {
+    height: 32,
+    paddingHorizontal: 10,
+    fontSize: 12,
+    borderWidth: 1,
+    minWidth: 90,
+  },
+  inlineAddCatBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inlineAddCatCancelBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

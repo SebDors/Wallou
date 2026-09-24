@@ -23,6 +23,9 @@ import {
   Check,
   X,
   Copy,
+  Tag,
+  FolderPlus,
+  Trash2,
 } from 'lucide-react-native';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -51,11 +54,17 @@ export default function SettingsScreen() {
   const {
     settings,
     updateSettings,
+    categories,
+    addCategory,
+    deleteCategory,
     exportData,
     importData,
     resetAllData,
   } = useBudget();
   const { showSuccess, showError, showConfirm, showDialog } = useDialog();
+
+  // Category input state
+  const [newCatInput, setNewCatInput] = useState('');
 
   // Custom Ratios State
   const [needsRatio, setNeedsRatio] = useState<string>(
@@ -609,6 +618,97 @@ export default function SettingsScreen() {
         </Pressable>
       </Card>
 
+      {/* 4. Gestion des Catégories */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.text.secondary, marginTop: 16 }]}>
+        Catégories d'opérations
+      </Text>
+      <Card style={styles.cardSection}>
+        {/* Add Category Input */}
+        <View style={styles.addCategoryRow}>
+          <TextInput
+            value={newCatInput}
+            onChangeText={setNewCatInput}
+            placeholder="Nouvelle catégorie..."
+            placeholderTextColor={theme.colors.text.muted}
+            style={[
+              styles.addCatInput,
+              {
+                backgroundColor: theme.colors.bg.surfaceSubtle,
+                borderColor: theme.colors.border.subtle,
+                color: theme.colors.text.primary,
+                borderRadius: theme.radii.md,
+              },
+            ]}
+          />
+          <Pressable
+            onPress={async () => {
+              if (!newCatInput.trim()) return;
+              await addCategory(newCatInput.trim());
+              setNewCatInput('');
+              showSuccess('Catégorie ajoutée', `"${newCatInput.trim()}" est disponible.`);
+            }}
+            style={({ pressed }) => [
+              styles.addCatBtn,
+              {
+                backgroundColor: theme.colors.pillar.savings,
+                borderRadius: theme.radii.md,
+                opacity: pressed ? 0.8 : 1,
+              },
+            ]}
+          >
+            <FolderPlus size={18} color="#FFFFFF" />
+          </Pressable>
+        </View>
+
+        {/* Categories Chips */}
+        <View style={styles.categoriesList}>
+          {categories.map((cat) => {
+            const isCustom = (settings?.customCategories || []).includes(cat);
+            return (
+              <View
+                key={cat}
+                style={[
+                  styles.categoryChip,
+                  {
+                    backgroundColor: theme.colors.bg.surfaceSubtle,
+                    borderColor: theme.colors.border.subtle,
+                    borderRadius: theme.radii.full,
+                  },
+                ]}
+              >
+                <Tag size={13} color={theme.colors.text.secondary} />
+                <Text
+                  style={[
+                    theme.typography.caption,
+                    { color: theme.colors.text.primary, marginLeft: 6 },
+                  ]}
+                >
+                  {cat}
+                </Text>
+                {isCustom && (
+                  <Pressable
+                    onPress={() => {
+                      showConfirm(
+                        'Supprimer cette catégorie ?',
+                        `Voulez-vous supprimer "${cat}" ?`,
+                        async () => {
+                          await deleteCategory(cat);
+                        },
+                        'Supprimer',
+                        true
+                      );
+                    }}
+                    style={styles.chipDeleteBtn}
+                  >
+                    <Trash2 size={13} color={theme.colors.status.overrun} />
+                  </Pressable>
+                )}
+              </View>
+            );
+          })}
+        </View>
+      </Card>
+
       {/* 4. Données & Sauvegardes (Local-First) */}
       <Text style={[styles.sectionTitle, { color: theme.colors.text.secondary, marginTop: 16 }]}>
         Sauvegarde & Données (100% Hors-Ligne)
@@ -974,5 +1074,40 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  addCategoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  addCatInput: {
+    flex: 1,
+    height: 40,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    fontSize: 14,
+  },
+  addCatBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoriesList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+  },
+  chipDeleteBtn: {
+    marginLeft: 8,
+    padding: 2,
   },
 });

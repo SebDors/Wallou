@@ -3,7 +3,7 @@
 // ==========================================
 
 export type PillarId = 'needs' | 'wants' | 'savings';
-export type TransactionType = 'income' | 'expense';
+export type TransactionType = 'income' | 'expense' | 'refund';
 export type RecurrenceFrequency = 'monthly';
 export type PillarStatus = 'safe' | 'warning' | 'overrun';
 
@@ -25,22 +25,37 @@ export const PILLAR_NAMES: Record<PillarId, string> = {
   savings: 'Épargne',
 };
 
+export const DEFAULT_CATEGORIES: string[] = [
+  'Loyer & Charges',
+  'Courses & Alimentation',
+  'Transports',
+  'Santé',
+  'Restaurant & Sorties',
+  'Shopping & Loisirs',
+  'Abonnements',
+  'Épargne & Investissement',
+  'Salaire',
+  'Autre',
+];
+
 export interface Transaction {
   id: string;                    // UUID v4 or unique ID
-  type: TransactionType;         // 'income' | 'expense'
+  type: TransactionType;         // 'income' | 'expense' | 'refund'
   amount: number;                // strictly > 0, 2 decimals
-  pillarId?: PillarId;           // mandatory for expense, optional for income
+  pillarId?: PillarId;           // mandatory for expense, and for refund target pillar
   category: string;              // e.g. "Loyer", "Courses", "Restaurant", "Salaire"
   title: string;                 // label or description
   date: string;                  // ISO 8601 date string (e.g. "2026-09-23T10:00:00.000Z")
   recurringId?: string;          // reference to RecurringItem.id if auto-generated
+  targetExpenseIds?: string[];   // references to specific expenses refunded by this item
+  refundedAmount?: number;       // total refunded on this expense (if this is an expense)
   createdAt: string;             // ISO 8601
   updatedAt: string;             // ISO 8601
 }
 
 export interface RecurringItem {
   id: string;                    // UUID v4
-  type: TransactionType;         // 'income' | 'expense'
+  type: TransactionType;         // 'income' | 'expense' | 'refund'
   amount: number;                // strictly > 0
   pillarId?: PillarId;           // mandatory for expense
   category: string;              // e.g. "Abonnement", "Loyer"
@@ -59,6 +74,7 @@ export interface UserSettings {
   ratios: BudgetRatios;          // default { needs: 50, wants: 30, savings: 20 }
   theme: 'light' | 'dark' | 'system';
   hasCompletedOnboarding: boolean;
+  customCategories?: string[];   // user-defined categories
 }
 
 // ==========================================

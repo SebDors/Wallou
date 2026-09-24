@@ -7,6 +7,7 @@ import React, {
   useState,
 } from 'react';
 import {
+  DEFAULT_CATEGORIES,
   BudgetPeriodSummary,
   RecurringItem,
   Transaction,
@@ -36,6 +37,7 @@ export interface BudgetContextType {
   transactions: Transaction[];
   recurring: RecurringItem[];
   settings: UserSettings;
+  categories: string[];
   isHydrated: boolean;
   currentPeriodKey: string;
   summary: BudgetPeriodSummary;
@@ -51,6 +53,8 @@ export interface BudgetContextType {
   updateRecurringItem: (item: RecurringItem) => Promise<void>;
   deleteRecurringItem: (id: string) => Promise<void>;
   updateSettings: (newSettings: Partial<UserSettings>) => Promise<void>;
+  addCategory: (categoryName: string) => Promise<void>;
+  deleteCategory: (categoryName: string) => Promise<void>;
   exportData: () => HermeticBackupPayload;
   importData: (rawJson: string) => Promise<{ success: boolean; error?: string }>;
   processRecurring: () => Promise<void>;
@@ -258,6 +262,29 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     []
   );
 
+  const categories = useMemo(() => {
+    const custom = settings?.customCategories || [];
+    const all = [...DEFAULT_CATEGORIES, ...custom];
+    // Deduplicate preserving order
+    return Array.from(new Set(all));
+  }, [settings?.customCategories]);
+
+  const addCategory = useCallback(async (categoryName: string): Promise<void> => {
+    const trimmed = categoryName.trim();
+    if (!trimmed) return;
+    const current = settings?.customCategories || [];
+    if (categories.includes(trimmed)) return;
+
+    const nextCustom = [...current, trimmed];
+    await updateSettings({ customCategories: nextCustom });
+  }, [categories, settings?.customCategories, updateSettings]);
+
+  const deleteCategory = useCallback(async (categoryName: string): Promise<void> => {
+    const current = settings?.customCategories || [];
+    const nextCustom = current.filter((c) => c !== categoryName);
+    await updateSettings({ customCategories: nextCustom });
+  }, [settings?.customCategories, updateSettings]);
+
   // 6. Manual Recurring Synthesis
   const processRecurring = useCallback(async (): Promise<void> => {
     setTransactions((prevTx) => {
@@ -313,6 +340,7 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     transactions,
     recurring,
     settings,
+    categories,
     isHydrated,
     currentPeriodKey,
     summary,
@@ -324,6 +352,8 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     updateRecurringItem,
     deleteRecurringItem,
     updateSettings,
+    addCategory,
+    deleteCategory,
     exportData,
     importData,
     processRecurring,
