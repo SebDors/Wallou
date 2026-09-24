@@ -8,7 +8,6 @@ import {
   Switch,
   Modal,
   TextInput,
-  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -25,6 +24,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useBudget } from '../../src/context/BudgetContext';
+import { useDialog } from '../../src/context/DialogContext';
 import { Card } from '../../src/components/Card';
 import { Pill } from '../../src/components/Pill';
 import { formatCurrency } from '../../src/services/budgetEngine';
@@ -43,6 +43,7 @@ export default function RecurrencesScreen() {
     processRecurring,
     settings,
   } = useBudget();
+  const { showConfirm, showError, showSuccess } = useDialog();
 
   const [activeTab, setActiveTab] = useState<TabFilter>('all');
   const [modalVisible, setModalVisible] = useState(false);
@@ -123,43 +124,38 @@ export default function RecurrencesScreen() {
   };
 
   const handleDelete = (item: RecurringItem) => {
-    Alert.alert(
+    showConfirm(
       'Supprimer la récurrence',
       `Voulez-vous vraiment supprimer "${item.title}" ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            } catch {}
-            await deleteRecurringItem(item.id);
-            if (editingItem?.id === item.id) {
-              setModalVisible(false);
-            }
-          },
-        },
-      ]
+      async () => {
+        try {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch {}
+        await deleteRecurringItem(item.id);
+        if (editingItem?.id === item.id) {
+          setModalVisible(false);
+        }
+      },
+      'Supprimer',
+      true
     );
   };
 
   const handleSaveForm = async () => {
     const parsedAmount = parseFloat(formAmount.replace(',', '.'));
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      Alert.alert('Montant invalide', 'Veuillez saisir un montant supérieur à 0.');
+      showError('Montant invalide', 'Veuillez saisir un montant supérieur à 0.');
       return;
     }
 
     if (!formTitle.trim()) {
-      Alert.alert('Titre requis', 'Veuillez renseigner un titre pour cette charge.');
+      showError('Titre requis', 'Veuillez renseigner un titre pour cette charge.');
       return;
     }
 
     const dayNum = parseInt(formDay, 10);
     if (isNaN(dayNum) || dayNum < 1 || dayNum > 31) {
-      Alert.alert('Jour invalide', 'Le jour du mois doit être compris entre 1 et 31.');
+      showError('Jour invalide', 'Le jour du mois doit être compris entre 1 et 31.');
       return;
     }
 
@@ -201,7 +197,7 @@ export default function RecurrencesScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch {}
     await processRecurring();
-    Alert.alert(
+    showSuccess(
       'Opérations générées',
       'Les charges fixes prévues pour ce mois ont été vérifiées et appliquées au grand livre.'
     );

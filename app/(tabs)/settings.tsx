@@ -6,7 +6,6 @@ import {
   ScrollView,
   Pressable,
   TextInput,
-  Alert,
   Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,6 +30,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useBudget } from '../../src/context/BudgetContext';
+import { useDialog } from '../../src/context/DialogContext';
 import { Card } from '../../src/components/Card';
 import { validateRatios } from '../../src/services/budgetEngine';
 import { validateAndSanitizeBackup } from '../../src/services/exportImportService';
@@ -55,6 +55,7 @@ export default function SettingsScreen() {
     importData,
     resetAllData,
   } = useBudget();
+  const { showSuccess, showError, showConfirm, showDialog } = useDialog();
 
   // Custom Ratios State
   const [needsRatio, setNeedsRatio] = useState<string>(
@@ -104,19 +105,13 @@ export default function SettingsScreen() {
     const validation = validateRatios(newRatios);
     if (!validation.isValid) {
       setRatioError(validation.error || 'Total doit être égal à 100%');
-      try {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      } catch {}
+      showError('Ratios invalides', validation.error || 'La somme des ratios doit être égale à 100%.');
       return;
     }
 
-    try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {}
-
     await updateSettings({ ratios: newRatios });
     setRatioError(null);
-    Alert.alert('Règles mises à jour', 'Vos ratios 50/30/20 ont été enregistrés.');
+    showSuccess('Règles mises à jour', 'Vos ratios 50/30/20 ont été enregistrés.');
   };
 
   const handleSelectCurrency = async (curr: string) => {
@@ -152,7 +147,7 @@ export default function SettingsScreen() {
       }
     } catch (err: any) {
       console.error('Export failed:', err);
-      Alert.alert('Erreur d’export', err?.message || 'Impossible d’exporter les données.');
+      showError('Erreur d’export', err?.message || 'Impossible d’exporter les données.');
     }
   };
 
@@ -174,107 +169,76 @@ export default function SettingsScreen() {
 
       const validation = validateAndSanitizeBackup(content);
       if (!validation.isValid || !validation.payload) {
-        Alert.alert('Sauvegarde invalide', validation.error || 'Le fichier JSON est incorrect.');
+        showError('Sauvegarde invalide', validation.error || 'Le fichier JSON est incorrect.');
         return;
       }
 
       const txCount = validation.payload.data.transactions.length;
       const recCount = validation.payload.data.recurring.length;
 
-      Alert.alert(
+      showConfirm(
         'Confirmer la restauration',
         `Restaurer ${txCount} opérations et ${recCount} récurrences ? Toutes les données actuelles seront remplacées.`,
-        [
-          { text: 'Annuler', style: 'cancel' },
-          {
-            text: 'Restaurer',
-            style: 'destructive',
-            onPress: async () => {
-              const res = await importData(content);
-              if (res.success) {
-                try {
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                } catch {}
-                Alert.alert('Succès', 'Sauvegarde restaurée avec succès.');
-              } else {
-                Alert.alert('Erreur', res.error || 'Échec de la restauration.');
-              }
-            },
-          },
-        ]
+        async () => {
+          const res = await importData(content);
+          if (res.success) {
+            showSuccess('Sauvegarde restaurée', 'Vos données ont été restaurées avec succès.');
+          } else {
+            showError('Erreur', res.error || 'Échec de la restauration.');
+          }
+        },
+        'Restaurer',
+        true
       );
     } catch (err: any) {
       console.error('Import failed:', err);
-      Alert.alert('Erreur d’importation', err?.message || 'Impossible de lire le fichier.');
+      showError('Erreur d’importation', err?.message || 'Impossible de lire le fichier.');
     }
   };
 
   const handleImportPastedJSON = async () => {
     if (!rawJsonInput.trim()) {
-      Alert.alert('Texte vide', 'Veuillez coller le JSON de sauvegarde.');
+      showError('Texte vide', 'Veuillez coller le JSON de sauvegarde.');
       return;
     }
 
     const validation = validateAndSanitizeBackup(rawJsonInput);
     if (!validation.isValid || !validation.payload) {
-      Alert.alert('Format invalide', validation.error || 'Le contenu n’est pas un JSON valide.');
+      showError('Format invalide', validation.error || 'Le contenu n’est pas un JSON valide.');
       return;
     }
 
     const txCount = validation.payload.data.transactions.length;
     const recCount = validation.payload.data.recurring.length;
 
-    Alert.alert(
+    showConfirm(
       'Confirmer la restauration',
       `Restaurer ${txCount} opérations et ${recCount} récurrences ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Restaurer',
-          style: 'destructive',
-          onPress: async () => {
-            const res = await importData(rawJsonInput);
-            if (res.success) {
-              setPasteModalVisible(false);
-              setRawJsonInput('');
-              Alert.alert('Succès', 'Sauvegarde restaurée avec succès.');
-            } else {
-              Alert.alert('Erreur', res.error || 'Échec de la restauration.');
-            }
-          },
-        },
-      ]
+      async () => {
+        const res = await importData(rawJsonInput);
+        if (res.success) {
+          setPasteModalVisible(false);
+          setRawJsonInput('');
+          showSuccess('Sauvegarde restaurée', 'Vos données ont été restaurées avec succès.');
+        } else {
+          showError('Erreur', res.error || 'Échec de la restauration.');
+        }
+      },
+      'Restaurer',
+      true
     );
   };
 
   const handleResetData = () => {
-    Alert.alert(
+    showConfirm(
       'Zone de danger',
-      'Voulez-vous réinitialiser toutes les données ? Cette action est irréversible.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Oui, tout supprimer',
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              'Confirmation définitive',
-              'Êtes-vous absolument sûr ? Toutes vos transactions et récurrences seront effacées.',
-              [
-                { text: 'Non, annuler', style: 'cancel' },
-                {
-                  text: 'DÉTRUIRE LES DONNÉES',
-                  style: 'destructive',
-                  onPress: async () => {
-                    await resetAllData();
-                    Alert.alert('Données effacées', 'L’application a été réinitialisée.');
-                  },
-                },
-              ]
-            );
-          },
-        },
-      ]
+      'Voulez-vous réinitialiser toutes les données ? Toutes vos transactions et récurrences seront effacées définitivement.',
+      async () => {
+        await resetAllData();
+        showSuccess('Données effacées', 'L’application a été réinitialisée.');
+      },
+      'Tout supprimer',
+      true
     );
   };
 
@@ -283,27 +247,29 @@ export default function SettingsScreen() {
     try {
       const release = await checkForUpdate('1.0.0');
       if (release.isAvailable && release.downloadUrl) {
-        Alert.alert(
-          'Mise à jour disponible !',
-          `Version ${release.version}\n\n${release.releaseNotes}`,
-          [
+        showDialog({
+          title: 'Mise à jour disponible !',
+          message: `Version ${release.version}\n\n${release.releaseNotes}`,
+          variant: 'info',
+          buttons: [
             { text: 'Plus tard', style: 'cancel' },
             {
               text: 'Télécharger',
+              style: 'default',
               onPress: () => openDownloadPage(release.downloadUrl),
             },
-          ]
-        );
+          ],
+        });
       } else {
-        Alert.alert(
+        showSuccess(
           'À jour',
-          'Vous utilisez déjà la dernière version de GestionApp (1.0.0).'
+          'Vous utilisez déjà la dernière version de Wallou (1.0.0).'
         );
       }
     } catch {
-      Alert.alert(
+      showSuccess(
         'Information',
-        'GestionApp est à jour (Version 1.0.0).'
+        'Wallou est à jour (Version 1.0.0).'
       );
     } finally {
       setIsCheckingUpdate(false);
