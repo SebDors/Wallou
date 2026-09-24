@@ -553,6 +553,9 @@ export default function DashboardScreen() {
               month: 'short',
             });
             const isIncome = tx.type === 'income';
+            const isRefund = tx.type === 'refund';
+            const hasRefund =
+              tx.type === 'expense' && Boolean(tx.refundedAmount && tx.refundedAmount > 0);
 
             return (
               <Pressable
@@ -571,7 +574,9 @@ export default function DashboardScreen() {
                   style={[
                     styles.txDot,
                     {
-                      backgroundColor: getPillarColor(tx.pillarId),
+                      backgroundColor: isRefund
+                        ? theme.colors.pillar.savings
+                        : getPillarColor(tx.pillarId),
                       borderRadius: theme.radii.full,
                     },
                   ]}
@@ -592,7 +597,8 @@ export default function DashboardScreen() {
                       { color: theme.colors.text.secondary, marginTop: 2 },
                     ]}
                   >
-                    {tx.category} · {dateStr}
+                    {isRefund ? `Remboursement · ` : ''}{tx.category} · {dateStr}
+                    {hasRefund ? ` · Remboursé ${formatCurrency(tx.refundedAmount || 0, currency)}` : ''}
                   </Text>
                 </View>
                 <Text
@@ -602,12 +608,14 @@ export default function DashboardScreen() {
                     {
                       color: isIncome
                         ? theme.colors.status.income
+                        : isRefund
+                        ? theme.colors.pillar.savings
                         : theme.colors.text.primary,
                       fontWeight: '600',
                     },
                   ]}
                 >
-                  {isIncome ? '+' : '-'}
+                  {isIncome || isRefund ? '+' : '-'}
                   {formatCurrency(tx.amount, currency)}
                 </Text>
               </Pressable>

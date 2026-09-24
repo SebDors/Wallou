@@ -226,6 +226,62 @@ describe('budgetEngine', () => {
       expect(summary.pillars.needs.status).toBe('warning');
       expect(summary.pillars.needs.isOverBudget).toBe(false);
     });
+
+    it('correctly deducts refund from totalExpenses and target pillar without altering other pillars', () => {
+      const ratios = { needs: 50, wants: 30, savings: 20 };
+      const periodKey = '2026-09';
+      const transactions: Transaction[] = [
+        {
+          id: '1',
+          type: 'income',
+          amount: 2000,
+          category: 'Salaire',
+          title: 'Salaire',
+          date: '2026-09-01T09:00:00.000Z',
+          createdAt: '2026-09-01T09:00:00.000Z',
+          updatedAt: '2026-09-01T09:00:00.000Z',
+        },
+        {
+          id: '2',
+          type: 'expense',
+          amount: 100,
+          pillarId: 'wants',
+          category: 'Restaurant',
+          title: 'Dîner entre amis',
+          date: '2026-09-05T19:00:00.000Z',
+          createdAt: '2026-09-05T19:00:00.000Z',
+          updatedAt: '2026-09-05T19:00:00.000Z',
+        },
+        {
+          id: '3',
+          type: 'refund',
+          amount: 30,
+          pillarId: 'wants',
+          category: 'Remboursement',
+          title: 'Part ami dîner',
+          targetExpenseIds: ['2'],
+          date: '2026-09-06T10:00:00.000Z',
+          createdAt: '2026-09-06T10:00:00.000Z',
+          updatedAt: '2026-09-06T10:00:00.000Z',
+        },
+      ];
+
+      const summary = calculateBudgetPeriodSummary(transactions, ratios, periodKey);
+
+      // Income remains 2000
+      expect(summary.totalIncome).toBe(2000);
+      // Total expenses: 100 - 30 = 70
+      expect(summary.totalExpenses).toBe(70);
+      // Wants: allocated 600, spent 70, remaining 530
+      expect(summary.pillars.wants.spent).toBe(70);
+      expect(summary.pillars.wants.remaining).toBe(530);
+      // Needs: allocated 1000, spent 0, remaining 1000
+      expect(summary.pillars.needs.spent).toBe(0);
+      expect(summary.pillars.needs.remaining).toBe(1000);
+      // Savings: allocated 400, spent 0, remaining 400
+      expect(summary.pillars.savings.spent).toBe(0);
+      expect(summary.pillars.savings.remaining).toBe(400);
+    });
   });
 
   describe('formatCurrency', () => {

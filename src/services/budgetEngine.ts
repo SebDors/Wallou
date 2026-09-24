@@ -100,11 +100,17 @@ export function calculateBudgetPeriodSummary(
       if (t.pillarId && t.pillarId in pillarExpenses) {
         pillarExpenses[t.pillarId] += amount;
       }
+    } else if (t.type === 'refund') {
+      // Refunds decrease total expenses and reduce spent amount in the target pillar
+      totalExpenses -= amount;
+      if (t.pillarId && t.pillarId in pillarExpenses) {
+        pillarExpenses[t.pillarId] = Math.max(0, pillarExpenses[t.pillarId] - amount);
+      }
     }
   }
 
   totalIncome = round2(totalIncome);
-  totalExpenses = round2(totalExpenses);
+  totalExpenses = round2(Math.max(0, totalExpenses));
 
   const allocations = calculateAllocations(totalIncome, ratios);
 

@@ -145,7 +145,25 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       // Synchronous in-memory update for 0ms UI response
       setTransactions((prev) => {
-        const next = [newTx, ...prev];
+        let updatedPrev = [...prev];
+        if (newTx.type === 'refund' && newTx.targetExpenseIds && newTx.targetExpenseIds.length > 0) {
+          const targetIds = new Set(newTx.targetExpenseIds);
+          let remainingRefund = newTx.amount;
+          updatedPrev = updatedPrev.map((t) => {
+            if (targetIds.has(t.id) && remainingRefund > 0) {
+              const currentRefunded = t.refundedAmount || 0;
+              const unrefunded = Math.max(0, t.amount - currentRefunded);
+              const toApply = Math.min(unrefunded, remainingRefund);
+              remainingRefund -= toApply;
+              return {
+                ...t,
+                refundedAmount: Number((currentRefunded + toApply).toFixed(2)),
+              };
+            }
+            return t;
+          });
+        }
+        const next = [newTx, ...updatedPrev];
         // Asynchronous write-behind persistence
         saveTransactions(next).catch((err) =>
           console.error('Failed to persist transaction to AsyncStorage:', err)
@@ -176,7 +194,29 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const deleteTransaction = useCallback(async (id: string): Promise<void> => {
     setTransactions((prev) => {
-      const next = prev.filter((t) => t.id !== id);
+      const deletedTx = prev.find((t) => t.id === id);
+      let next = prev.filter((t) => t.id !== id);
+      if (
+        deletedTx &&
+        deletedTx.type === 'refund' &&
+        deletedTx.targetExpenseIds &&
+        deletedTx.targetExpenseIds.length > 0
+      ) {
+        const targetIds = new Set(deletedTx.targetExpenseIds);
+        let refundToRemove = deletedTx.amount;
+        next = next.map((t) => {
+          if (targetIds.has(t.id) && refundToRemove > 0) {
+            const currentRefunded = t.refundedAmount || 0;
+            const toRemove = Math.min(currentRefunded, refundToRemove);
+            refundToRemove -= toRemove;
+            return {
+              ...t,
+              refundedAmount: Number(Math.max(0, currentRefunded - toRemove).toFixed(2)),
+            };
+          }
+          return t;
+        });
+      }
       saveTransactions(next).catch((err) =>
         console.error('Failed to delete transaction from AsyncStorage:', err)
       );

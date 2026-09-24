@@ -21,6 +21,7 @@ import {
   Coffee,
   PiggyBank,
   ArrowUpCircle,
+  RotateCcw,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../src/context/ThemeContext';
@@ -61,9 +62,9 @@ export default function TransactionsScreen() {
   const counts = useMemo(() => {
     return {
       all: transactions.length,
-      needs: transactions.filter((t) => t.type === 'expense' && t.pillarId === 'needs').length,
-      wants: transactions.filter((t) => t.type === 'expense' && t.pillarId === 'wants').length,
-      savings: transactions.filter((t) => t.type === 'expense' && t.pillarId === 'savings').length,
+      needs: transactions.filter((t) => t.pillarId === 'needs').length,
+      wants: transactions.filter((t) => t.pillarId === 'wants').length,
+      savings: transactions.filter((t) => t.pillarId === 'savings').length,
       income: transactions.filter((t) => t.type === 'income').length,
     };
   }, [transactions]);
@@ -74,11 +75,11 @@ export default function TransactionsScreen() {
 
     // Filter by type / pillar
     if (activeFilter === 'needs') {
-      result = result.filter((t) => t.type === 'expense' && t.pillarId === 'needs');
+      result = result.filter((t) => t.pillarId === 'needs');
     } else if (activeFilter === 'wants') {
-      result = result.filter((t) => t.type === 'expense' && t.pillarId === 'wants');
+      result = result.filter((t) => t.pillarId === 'wants');
     } else if (activeFilter === 'savings') {
-      result = result.filter((t) => t.type === 'expense' && t.pillarId === 'savings');
+      result = result.filter((t) => t.pillarId === 'savings');
     } else if (activeFilter === 'income') {
       result = result.filter((t) => t.type === 'income');
     }
@@ -148,6 +149,9 @@ export default function TransactionsScreen() {
     if (tx.type === 'income') {
       return <ArrowUpCircle size={18} color={theme.colors.status.income} />;
     }
+    if (tx.type === 'refund') {
+      return <RotateCcw size={18} color={theme.colors.pillar.savings} />;
+    }
     switch (tx.pillarId) {
       case 'needs':
         return <Home size={18} color={theme.colors.pillar.needs} />;
@@ -162,6 +166,7 @@ export default function TransactionsScreen() {
 
   const getPillarColor = (tx: Transaction) => {
     if (tx.type === 'income') return theme.colors.status.income;
+    if (tx.type === 'refund') return theme.colors.pillar.savings;
     switch (tx.pillarId) {
       case 'needs':
         return theme.colors.pillar.needs;
@@ -294,6 +299,9 @@ export default function TransactionsScreen() {
         )}
         renderItem={({ item }) => {
           const isIncome = item.type === 'income';
+          const isRefund = item.type === 'refund';
+          const hasRefund =
+            item.type === 'expense' && Boolean(item.refundedAmount && item.refundedAmount > 0);
 
           return (
             <SwipeableTransactionRow
@@ -344,8 +352,19 @@ export default function TransactionsScreen() {
                         { color: theme.colors.text.secondary, marginTop: 2 },
                       ]}
                     >
-                      {item.category}
+                      {isRefund ? `Remboursement • ${item.category}` : item.category}
                     </Text>
+                    {hasRefund && (
+                      <Text
+                        style={[
+                          theme.typography.caption,
+                          { color: theme.colors.pillar.savings, marginTop: 2, fontWeight: '600' },
+                        ]}
+                      >
+                        Remboursé : {formatCurrency(item.refundedAmount || 0, currency)}
+                        {(item.refundedAmount || 0) >= item.amount ? ' (Intégral)' : ''}
+                      </Text>
+                    )}
                   </View>
 
                   <Text
@@ -355,12 +374,14 @@ export default function TransactionsScreen() {
                       {
                         color: isIncome
                           ? theme.colors.status.income
+                          : isRefund
+                          ? theme.colors.pillar.savings
                           : theme.colors.text.primary,
                         fontWeight: '700',
                       },
                     ]}
                   >
-                    {isIncome ? '+' : '-'}
+                    {isIncome || isRefund ? '+' : '-'}
                     {formatCurrency(item.amount, currency)}
                   </Text>
                 </View>

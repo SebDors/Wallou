@@ -10,13 +10,13 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { X, Trash2, Edit3, Home, Coffee, PiggyBank, ArrowUpCircle } from 'lucide-react-native';
+import { X, Trash2, Edit3, Home, Coffee, PiggyBank, ArrowUpCircle, RotateCcw } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../context/ThemeContext';
 import { useBudget } from '../context/BudgetContext';
 import { useDialog } from '../context/DialogContext';
 import { formatCurrency } from '../services/budgetEngine';
-import { PillarId, Transaction } from '../types/budget';
+import { PillarId, Transaction, PILLAR_NAMES } from '../types/budget';
 
 export interface TransactionDetailModalProps {
   transaction: Transaction | null;
@@ -53,9 +53,11 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
 
   const currency = settings?.currency || '€';
   const isIncome = transaction.type === 'income';
+  const isRefund = transaction.type === 'refund';
 
   const getPillarColor = () => {
     if (isIncome) return theme.colors.status.income;
+    if (isRefund) return theme.colors.pillar.savings;
     switch (transaction.pillarId) {
       case 'needs':
         return theme.colors.pillar.needs;
@@ -70,6 +72,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
 
   const getPillarIcon = () => {
     if (isIncome) return <ArrowUpCircle size={20} color={theme.colors.status.income} />;
+    if (isRefund) return <RotateCcw size={20} color={theme.colors.pillar.savings} />;
     switch (transaction.pillarId) {
       case 'needs':
         return <Home size={20} color={theme.colors.pillar.needs} />;
@@ -169,10 +172,16 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                       style={[
                         theme.typography.title1,
                         theme.typography.tabularNums,
-                        { color: isIncome ? theme.colors.status.income : theme.colors.text.primary },
+                        {
+                          color: isIncome
+                            ? theme.colors.status.income
+                            : isRefund
+                            ? theme.colors.pillar.savings
+                            : theme.colors.text.primary,
+                        },
                       ]}
                     >
-                      {isIncome ? '+' : '-'}
+                      {isIncome || isRefund ? '+' : '-'}
                       {formatCurrency(transaction.amount, currency)}
                     </Text>
                   </View>
@@ -182,6 +191,8 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                     <Text style={[theme.typography.body, { color: getPillarColor(), fontWeight: '600' }]}>
                       {isIncome
                         ? 'Revenu'
+                        : isRefund
+                        ? `Remboursement (${PILLAR_NAMES[transaction.pillarId || 'wants']})`
                         : transaction.pillarId === 'needs'
                         ? 'Besoins (50%)'
                         : transaction.pillarId === 'wants'
@@ -189,6 +200,24 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                         : 'Épargne (20%)'}
                     </Text>
                   </View>
+
+                  {/* If expense has a refund applied */}
+                  {transaction.type === 'expense' && Boolean(transaction.refundedAmount && transaction.refundedAmount > 0) && (
+                    <>
+                      <View style={styles.detailRow}>
+                        <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>Montant remboursé</Text>
+                        <Text style={[theme.typography.body, { color: theme.colors.pillar.savings, fontWeight: '700' }]}>
+                          +{formatCurrency(transaction.refundedAmount || 0, currency)}
+                        </Text>
+                      </View>
+                      <View style={styles.detailRow}>
+                        <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>Reste à votre charge</Text>
+                        <Text style={[theme.typography.bodyLarge, { color: theme.colors.text.primary, fontWeight: '700' }]}>
+                          {formatCurrency(Math.max(0, transaction.amount - (transaction.refundedAmount || 0)), currency)}
+                        </Text>
+                      </View>
+                    </>
+                  )}
 
                   <View style={styles.detailRow}>
                     <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>Date</Text>

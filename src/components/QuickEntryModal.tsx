@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,11 +11,11 @@ import {
   TouchableWithoutFeedback,
   ScrollView,
 } from 'react-native';
-import { X, ArrowDownCircle, ArrowUpCircle, Plus } from 'lucide-react-native';
+import { X, ArrowDownCircle, ArrowUpCircle, Plus, RotateCcw, Check } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../context/ThemeContext';
 import { useBudget } from '../context/BudgetContext';
-import { PillarId, TransactionType } from '../types/budget';
+import { PillarId, TransactionType, PILLAR_NAMES } from '../types/budget';
 import { NumericKeypad } from './NumericKeypad';
 
 export interface QuickEntryModalProps {
@@ -25,17 +25,38 @@ export interface QuickEntryModalProps {
 
 export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClose }) => {
   const { theme } = useTheme();
-  const { addTransaction, settings, categories, addCategory } = useBudget();
+  const {
+    addTransaction,
+    settings,
+    categories,
+    addCategory,
+    transactions,
+    currentPeriodKey,
+  } = useBudget();
 
   const [amountStr, setAmountStr] = useState<string>('0');
   const [title, setTitle] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [isAddingCategory, setIsAddingCategory] = useState<boolean>(false);
   const [newCategoryName, setNewCategoryName] = useState<string>('');
+  const [selectedExpenseIds, setSelectedExpenseIds] = useState<string[]>([]);
   const [txType, setTxType] = useState<TransactionType>('expense');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const lastSubmitTimeRef = useRef<number>(0);
+
+  const eligibleExpenses = useMemo(() => {
+    return transactions.filter(
+      (t) => t.type === 'expense' && t.date.startsWith(currentPeriodKey)
+    );
+  }, [transactions, currentPeriodKey]);
+
+  const selectedExpenses = useMemo(() => {
+    return transactions.filter((t) => selectedExpenseIds.includes(t.id));
+  }, [transactions, selectedExpenseIds]);
+
+  const lockedPillar: PillarId | undefined =
+    selectedExpenses.length > 0 ? selectedExpenses[0].pillarId : undefined;
 
   const resetForm = useCallback(() => {
     setAmountStr('0');
@@ -43,6 +64,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
     setSelectedCategory('');
     setIsAddingCategory(false);
     setNewCategoryName('');
+    setSelectedExpenseIds([]);
     setTxType('expense');
     setErrorMessage(null);
   }, []);
@@ -118,14 +140,32 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
     } catch {}
 
     const nowIso = new Date().toISOString();
-    const finalTitle = title.trim() || (txType === 'income' ? 'Revenu' : 'Dépense rapide');
+    const finalTitle =
+      title.trim() ||
+      (txType === 'income'
+        ? 'Revenu'
+        : txType === 'refund'
+        ? selectedExpenses.length > 0
+          ? `Remboursement (${selectedExpenses.map((e) => e.title).join(', ')})`
+          : 'Remboursement'
+        : 'Dépense rapide');
+
+    const effectivePillar: PillarId | undefined =
+      txType === 'refund'
+        ? lockedPillar || pillar || 'needs'
+        : txType === 'expense'
+        ? pillar || 'needs'
+        : undefined;
+
     const finalCategory =
       selectedCategory.trim() ||
-      (pillar === 'needs'
+      (txType === 'refund'
+        ? 'Remboursement'
+        : effectivePillar === 'needs'
         ? 'Besoins'
-        : pillar === 'wants'
+        : effectivePillar === 'wants'
         ? 'Envies'
-        : pillar === 'savings'
+        : effectivePillar === 'savings'
         ? 'Épargne'
         : 'Revenu');
 
@@ -136,10 +176,14 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
     addTransaction({
       type: txType,
       amount: parsedAmount,
-      pillarId: txType === 'expense' ? pillar || 'needs' : undefined,
+      pillarId: effectivePillar,
       category: finalCategory,
       title: finalTitle,
       date: nowIso,
+      targetExpenseIds:
+        txType === 'refund' && selectedExpenseIds.length > 0
+          ? selectedExpenseIds
+          : undefined,
     }).catch((err) => {
       console.error('Failed to add transaction from QuickEntryModal:', err);
     });
@@ -192,7 +236,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
                 </Pressable>
               </View>
 
-              {/* Type Switcher: Dépense vs Revenu */}
+              {/* Type Switcher: Dépense vs Revenu vs Remboursement */}
               <View
                 style={[
                   styles.typeSwitcher,
@@ -203,7 +247,10 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
                 ]}
               >
                 <Pressable
-                  onPress={() => setTxType('expense')}
+                  onPress={() => {
+                    setTxType('expense');
+                    setSelectedExpenseIds([]);
+                  }}
                   style={[
                     styles.typeTab,
                     txType === 'expense' && {
@@ -217,7 +264,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
                   ]}
                 >
                   <ArrowDownCircle
-                    size={16}
+                    size={14}
                     color={
                       txType === 'expense'
                         ? theme.colors.status.overrun
@@ -233,7 +280,8 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
                             ? theme.colors.text.primary
                             : theme.colors.text.muted,
                         fontWeight: '600',
-                        marginLeft: 6,
+                        marginLeft: 4,
+                        fontSize: 12,
                       },
                     ]}
                   >
@@ -242,7 +290,10 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
                 </Pressable>
 
                 <Pressable
-                  onPress={() => setTxType('income')}
+                  onPress={() => {
+                    setTxType('income');
+                    setSelectedExpenseIds([]);
+                  }}
                   style={[
                     styles.typeTab,
                     txType === 'income' && {
@@ -256,7 +307,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
                   ]}
                 >
                   <ArrowUpCircle
-                    size={16}
+                    size={14}
                     color={
                       txType === 'income'
                         ? theme.colors.status.income
@@ -272,11 +323,52 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
                             ? theme.colors.text.primary
                             : theme.colors.text.muted,
                         fontWeight: '600',
-                        marginLeft: 6,
+                        marginLeft: 4,
+                        fontSize: 12,
                       },
                     ]}
                   >
                     Revenu
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => setTxType('refund')}
+                  style={[
+                    styles.typeTab,
+                    txType === 'refund' && {
+                      backgroundColor: theme.colors.bg.surface,
+                      borderRadius: theme.radii.full,
+                      shadowColor: '#000',
+                      shadowOpacity: 0.1,
+                      shadowRadius: 2,
+                      elevation: 2,
+                    },
+                  ]}
+                >
+                  <RotateCcw
+                    size={14}
+                    color={
+                      txType === 'refund'
+                        ? theme.colors.pillar.savings
+                        : theme.colors.text.muted
+                    }
+                  />
+                  <Text
+                    style={[
+                      theme.typography.caption,
+                      {
+                        color:
+                          txType === 'refund'
+                            ? theme.colors.text.primary
+                            : theme.colors.text.muted,
+                        fontWeight: '600',
+                        marginLeft: 4,
+                        fontSize: 12,
+                      },
+                    ]}
+                  >
+                    Remboursement
                   </Text>
                 </Pressable>
               </View>
@@ -291,6 +383,8 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
                       color:
                         txType === 'income'
                           ? theme.colors.status.income
+                          : txType === 'refund'
+                          ? theme.colors.pillar.savings
                           : theme.colors.text.primary,
                       fontSize: 40,
                       fontWeight: '800',
@@ -298,7 +392,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
                   ]}
                   numberOfLines={1}
                 >
-                  {amountStr} {currencySymbol}
+                  {txType === 'refund' ? '+' : ''}{amountStr} {currencySymbol}
                 </Text>
                 {errorMessage ? (
                   <Text
@@ -456,6 +550,75 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
                 </ScrollView>
               </View>
 
+              {/* Linked Expense Selector for Refunds */}
+              {txType === 'refund' && eligibleExpenses.length > 0 && (
+                <View style={styles.refundExpenseSection}>
+                  <Text
+                    style={[
+                      theme.typography.caption,
+                      { color: theme.colors.text.secondary, marginBottom: 6, fontWeight: '600' },
+                    ]}
+                  >
+                    Dépense à rembourser (optionnel) :
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.refundExpenseScroll}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    {eligibleExpenses.map((exp) => {
+                      const isSelected = selectedExpenseIds.includes(exp.id);
+                      const remb = exp.refundedAmount || 0;
+                      const remaining = Math.max(0, exp.amount - remb);
+                      return (
+                        <Pressable
+                          key={exp.id}
+                          onPress={() => {
+                            if (isSelected) {
+                              setSelectedExpenseIds((prev) => prev.filter((id) => id !== exp.id));
+                            } else {
+                              setSelectedExpenseIds((prev) => [...prev, exp.id]);
+                              if (amountStr === '0') {
+                                setAmountStr(remaining.toString());
+                              }
+                              if (!title.trim()) {
+                                setTitle(`Remboursement ${exp.title}`);
+                              }
+                            }
+                          }}
+                          style={[
+                            styles.refundExpenseChip,
+                            {
+                              backgroundColor: isSelected
+                                ? theme.colors.pillar.savings
+                                : theme.colors.bg.surfaceSubtle,
+                              borderColor: isSelected
+                                ? theme.colors.pillar.savings
+                                : theme.colors.border.subtle,
+                              borderRadius: theme.radii.full,
+                            },
+                          ]}
+                        >
+                          {isSelected && <Check size={12} color="#FFFFFF" style={{ marginRight: 4 }} />}
+                          <Text
+                            style={[
+                              theme.typography.caption,
+                              {
+                                color: isSelected ? '#FFFFFF' : theme.colors.text.primary,
+                                fontWeight: isSelected ? '700' : '500',
+                              },
+                            ]}
+                          >
+                            {exp.title} ({remaining} {currencySymbol})
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
+
               {/* Custom Numeric Keypad (Tap 1) */}
               <View style={styles.keypadWrapper}>
                 <NumericKeypad
@@ -519,6 +682,74 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
                     <Text style={styles.pillarBtnLabel}>Épargne</Text>
                   </Pressable>
                 </View>
+              ) : txType === 'refund' ? (
+                lockedPillar ? (
+                  <View style={styles.singleActionRow}>
+                    <Pressable
+                      onPress={() => handleSubmit(lockedPillar)}
+                      style={({ pressed }) => [
+                        styles.incomeButton,
+                        {
+                          backgroundColor:
+                            theme.colors.pillar[lockedPillar] || theme.colors.pillar.savings,
+                          borderRadius: theme.radii.lg,
+                          opacity: pressed ? 0.8 : 1,
+                        },
+                      ]}
+                    >
+                      <Text style={styles.incomeBtnText}>
+                        Rembourser {PILLAR_NAMES[lockedPillar]}
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <View style={styles.pillarActionsRow}>
+                    <Pressable
+                      onPress={() => handleSubmit('needs')}
+                      style={({ pressed }) => [
+                        styles.pillarButton,
+                        {
+                          backgroundColor: theme.colors.pillar.needs,
+                          borderRadius: theme.radii.lg,
+                          opacity: pressed ? 0.8 : 1,
+                        },
+                      ]}
+                    >
+                      <RotateCcw size={16} color="#FFFFFF" />
+                      <Text style={[styles.pillarBtnLabel, { marginTop: 4 }]}>Besoins</Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => handleSubmit('wants')}
+                      style={({ pressed }) => [
+                        styles.pillarButton,
+                        {
+                          backgroundColor: theme.colors.pillar.wants,
+                          borderRadius: theme.radii.lg,
+                          opacity: pressed ? 0.8 : 1,
+                        },
+                      ]}
+                    >
+                      <RotateCcw size={16} color="#FFFFFF" />
+                      <Text style={[styles.pillarBtnLabel, { marginTop: 4 }]}>Envies</Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => handleSubmit('savings')}
+                      style={({ pressed }) => [
+                        styles.pillarButton,
+                        {
+                          backgroundColor: theme.colors.pillar.savings,
+                          borderRadius: theme.radii.lg,
+                          opacity: pressed ? 0.8 : 1,
+                        },
+                      ]}
+                    >
+                      <RotateCcw size={16} color="#FFFFFF" />
+                      <Text style={[styles.pillarBtnLabel, { marginTop: 4 }]}>Épargne</Text>
+                    </Pressable>
+                  </View>
+                )
               ) : (
                 <View style={styles.singleActionRow}>
                   <Pressable
@@ -581,7 +812,8 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     padding: 3,
     marginTop: 8,
-    width: 220,
+    width: 330,
+    maxWidth: '100%',
   },
   typeTab: {
     flex: 1,
@@ -682,5 +914,21 @@ const styles = StyleSheet.create({
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  refundExpenseSection: {
+    marginBottom: 10,
+  },
+  refundExpenseScroll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 2,
+  },
+  refundExpenseChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
   },
 });
