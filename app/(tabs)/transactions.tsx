@@ -29,6 +29,9 @@ import { useQuickEntry } from '../../src/context/QuickEntryContext';
 import { useLocalSearchParams } from 'expo-router';
 import { Pill } from '../../src/components/Pill';
 import { Card } from '../../src/components/Card';
+import { SwipeableTransactionRow } from '../../src/components/SwipeableTransactionRow';
+import { TransactionDetailModal } from '../../src/components/TransactionDetailModal';
+import { useDialog } from '../../src/context/DialogContext';
 import { formatCurrency } from '../../src/services/budgetEngine';
 import { PillarId, Transaction } from '../../src/types/budget';
 
@@ -40,6 +43,7 @@ export default function TransactionsScreen() {
   const params = useLocalSearchParams<{ filter?: string }>();
   const { transactions, deleteTransaction, updateTransaction, settings } = useBudget();
   const { openQuickEntry } = useQuickEntry();
+  const { showConfirm } = useDialog();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>(() => {
@@ -49,19 +53,7 @@ export default function TransactionsScreen() {
     return 'all';
   });
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
-
-  // Synchronize when route params change (e.g. redirected from Dashboard pillar card)
-  React.useEffect(() => {
-    if (params.filter && ['all', 'needs', 'wants', 'savings', 'income'].includes(params.filter)) {
-      setActiveFilter(params.filter as FilterType);
-    }
-  }, [params.filter]);
-
-  // Edit State
-  const [isEditing, setIsEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState('');
-  const [editAmount, setEditAmount] = useState('');
-  const [editPillar, setEditPillar] = useState<PillarId>('needs');
+  const [startEditing, setStartEditing] = useState(false);
 
   const currency = settings?.currency || '€';
 
@@ -147,60 +139,9 @@ export default function TransactionsScreen() {
     return sections;
   }, [filteredTransactions]);
 
-  const handleOpenDetail = (tx: Transaction) => {
+  const handleOpenDetail = (tx: Transaction, editMode = false) => {
     setSelectedTx(tx);
-    setEditTitle(tx.title);
-    setEditAmount(String(tx.amount));
-    setEditPillar(tx.pillarId || 'needs');
-    setIsEditing(false);
-  };
-
-  const handleDelete = async () => {
-    if (!selectedTx) return;
-    try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    } catch {}
-
-    Alert.alert(
-      'Supprimer cette opération ?',
-      `Êtes-vous sûr de vouloir supprimer "${selectedTx.title}" (${formatCurrency(
-        selectedTx.amount,
-        currency
-      )}) ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteTransaction(selectedTx.id);
-            setSelectedTx(null);
-          },
-        },
-      ]
-    );
-  };
-
-  const handleSaveEdit = async () => {
-    if (!selectedTx) return;
-    const parsed = parseFloat(editAmount.replace(',', '.'));
-    if (isNaN(parsed) || parsed <= 0) {
-      Alert.alert('Montant invalide', 'Veuillez saisir un montant positif.');
-      return;
-    }
-
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {}
-
-    await updateTransaction({
-      ...selectedTx,
-      title: editTitle.trim() || selectedTx.title,
-      amount: parsed,
-      pillarId: selectedTx.type === 'expense' ? editPillar : undefined,
-    });
-    setSelectedTx(null);
-    setIsEditing(false);
+    setStartEditing(editMode);
   };
 
   const getPillarIcon = (tx: Transaction) => {
@@ -355,61 +296,76 @@ export default function TransactionsScreen() {
           const isIncome = item.type === 'income';
 
           return (
-            <Card
-              onPress={() => handleOpenDetail(item)}
-              style={styles.txCard}
-              padded={false}
+            <SwipeableTransactionRow
+              onPress={() => handleOpenDetail(item, false)}
+              onSwipeRightEdit={() => handleOpenDetail(item, true)}
+              onSwipeLeftDelete={() => {
+                showConfirm(
+                  'Supprimer cette opération ?',
+                  `Êtes-vous sûr de vouloir supprimer "${item.title}" (${formatCurrency(item.amount, currency)}) ?`,
+                  async () => {
+                    await deleteTransaction(item.id);
+                  },
+                  'Supprimer',
+                  true
+                );
+              }}
             >
-              <View style={styles.txRow}>
-                <View
-                  style={[
-                    styles.iconBox,
-                    {
-                      backgroundColor: theme.colors.bg.surfaceSubtle,
-                      borderRadius: theme.radii.sm,
-                    },
-                  ]}
-                >
-                  {getPillarIcon(item)}
-                </View>
-
-                <View style={styles.txInfo}>
-                  <Text
+              <Card
+                style={styles.txCard}
+                padded={false}
+              >
+                <View style={styles.txRow}>
+                  <View
                     style={[
-                      theme.typography.body,
-                      { color: theme.colors.text.primary, fontWeight: '600' },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {item.title}
-                  </Text>
-                  <Text
-                    style={[
-                      theme.typography.caption,
-                      { color: theme.colors.text.secondary, marginTop: 2 },
+                      styles.iconBox,
+                      {
+                        backgroundColor: theme.colors.bg.surfaceSubtle,
+                        borderRadius: theme.radii.sm,
+                      },
                     ]}
                   >
-                    {item.category}
+                    {getPillarIcon(item)}
+                  </View>
+
+                  <View style={styles.txInfo}>
+                    <Text
+                      style={[
+                        theme.typography.body,
+                        { color: theme.colors.text.primary, fontWeight: '600' },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {item.title}
+                    </Text>
+                    <Text
+                      style={[
+                        theme.typography.caption,
+                        { color: theme.colors.text.secondary, marginTop: 2 },
+                      ]}
+                    >
+                      {item.category}
+                    </Text>
+                  </View>
+
+                  <Text
+                    style={[
+                      theme.typography.bodyLarge,
+                      theme.typography.tabularNums,
+                      {
+                        color: isIncome
+                          ? theme.colors.status.income
+                          : theme.colors.text.primary,
+                        fontWeight: '700',
+                      },
+                    ]}
+                  >
+                    {isIncome ? '+' : '-'}
+                    {formatCurrency(item.amount, currency)}
                   </Text>
                 </View>
-
-                <Text
-                  style={[
-                    theme.typography.bodyLarge,
-                    theme.typography.tabularNums,
-                    {
-                      color: isIncome
-                        ? theme.colors.status.income
-                        : theme.colors.text.primary,
-                      fontWeight: '700',
-                    },
-                  ]}
-                >
-                  {isIncome ? '+' : '-'}
-                  {formatCurrency(item.amount, currency)}
-                </Text>
-              </View>
-            </Card>
+              </Card>
+            </SwipeableTransactionRow>
           );
         }}
         ListEmptyComponent={
@@ -459,311 +415,15 @@ export default function TransactionsScreen() {
       />
 
       {/* Transaction Details / Edit Modal */}
-      {selectedTx && (
-        <Modal
-          visible={!!selectedTx}
-          animationType="fade"
-          transparent={true}
-          onRequestClose={() => setSelectedTx(null)}
-        >
-          <Pressable
-            style={styles.modalBackdrop}
-            onPress={() => setSelectedTx(null)}
-          >
-            <Pressable
-              style={[
-                styles.detailSheet,
-                {
-                  backgroundColor: theme.colors.bg.surface,
-                  borderColor: theme.colors.border.subtle,
-                  borderRadius: theme.radii.xl,
-                },
-              ]}
-              onPress={(e) => e.stopPropagation()}
-            >
-              <View style={styles.detailHeader}>
-                <Text style={[theme.typography.title2, { color: theme.colors.text.primary }]}>
-                  {isEditing ? "Modifier l'opération" : "Détails de l'opération"}
-                </Text>
-                <Pressable onPress={() => setSelectedTx(null)}>
-                  <X size={20} color={theme.colors.text.secondary} />
-                </Pressable>
-              </View>
-
-              {!isEditing ? (
-                <View style={styles.detailContent}>
-                  <View style={styles.detailRow}>
-                    <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
-                      Titre
-                    </Text>
-                    <Text style={[theme.typography.bodyLarge, { color: theme.colors.text.primary, fontWeight: '600' }]}>
-                      {selectedTx.title}
-                    </Text>
-                  </View>
-
-                  <View style={styles.detailRow}>
-                    <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
-                      Montant
-                    </Text>
-                    <Text
-                      style={[
-                        theme.typography.title1,
-                        theme.typography.tabularNums,
-                        {
-                          color: selectedTx.type === 'income' ? theme.colors.status.income : theme.colors.text.primary,
-                        },
-                      ]}
-                    >
-                      {selectedTx.type === 'income' ? '+' : '-'}
-                      {formatCurrency(selectedTx.amount, currency)}
-                    </Text>
-                  </View>
-
-                  <View style={styles.detailRow}>
-                    <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
-                      Type / Pilier
-                    </Text>
-                    <Text style={[theme.typography.body, { color: getPillarColor(selectedTx), fontWeight: '600' }]}>
-                      {selectedTx.type === 'income'
-                        ? 'Revenu'
-                        : selectedTx.pillarId === 'needs'
-                        ? 'Besoins (50%)'
-                        : selectedTx.pillarId === 'wants'
-                        ? 'Envies (30%)'
-                        : 'Épargne (20%)'}
-                    </Text>
-                  </View>
-
-                  <View style={styles.detailRow}>
-                    <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
-                      Date
-                    </Text>
-                    <Text style={[theme.typography.body, { color: theme.colors.text.primary }]}>
-                      {new Date(selectedTx.date).toLocaleString('fr-FR', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </Text>
-                  </View>
-
-                  <View style={styles.actionsRow}>
-                    <Pressable
-                      onPress={() => setIsEditing(true)}
-                      style={[
-                        styles.editBtn,
-                        {
-                          backgroundColor: theme.colors.bg.surfaceSubtle,
-                          borderRadius: theme.radii.md,
-                        },
-                      ]}
-                    >
-                      <Edit3 size={16} color={theme.colors.text.primary} />
-                      <Text
-                        style={[
-                          theme.typography.body,
-                          { color: theme.colors.text.primary, fontWeight: '600', marginLeft: 6 },
-                        ]}
-                      >
-                        Modifier
-                      </Text>
-                    </Pressable>
-
-                    <Pressable
-                      onPress={handleDelete}
-                      style={[
-                        styles.deleteBtn,
-                        {
-                          backgroundColor: theme.colors.status.overrunBg,
-                          borderRadius: theme.radii.md,
-                        },
-                      ]}
-                    >
-                      <Trash2 size={16} color={theme.colors.status.overrun} />
-                      <Text
-                        style={[
-                          theme.typography.body,
-                          { color: theme.colors.status.overrun, fontWeight: '600', marginLeft: 6 },
-                        ]}
-                      >
-                        Supprimer
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.detailContent}>
-                  <Text style={[theme.typography.caption, { color: theme.colors.text.secondary, marginBottom: 4 }]}>
-                    Titre
-                  </Text>
-                  <TextInput
-                    value={editTitle}
-                    onChangeText={setEditTitle}
-                    style={[
-                      styles.editInput,
-                      {
-                        backgroundColor: theme.colors.bg.surfaceSubtle,
-                        borderColor: theme.colors.border.subtle,
-                        color: theme.colors.text.primary,
-                        borderRadius: theme.radii.md,
-                      },
-                    ]}
-                  />
-
-                  <Text
-                    style={[
-                      theme.typography.caption,
-                      { color: theme.colors.text.secondary, marginTop: 12, marginBottom: 4 },
-                    ]}
-                  >
-                    Montant ({currency})
-                  </Text>
-                  <TextInput
-                    value={editAmount}
-                    onChangeText={setEditAmount}
-                    keyboardType="numeric"
-                    style={[
-                      styles.editInput,
-                      {
-                        backgroundColor: theme.colors.bg.surfaceSubtle,
-                        borderColor: theme.colors.border.subtle,
-                        color: theme.colors.text.primary,
-                        borderRadius: theme.radii.md,
-                      },
-                    ]}
-                  />
-
-                  {selectedTx.type === 'expense' && (
-                    <>
-                      <Text
-                        style={[
-                          theme.typography.caption,
-                          { color: theme.colors.text.secondary, marginTop: 12, marginBottom: 6 },
-                        ]}
-                      >
-                        Pilier
-                      </Text>
-                      <View style={styles.pillarPickerRow}>
-                        <Pressable
-                          onPress={() => setEditPillar('needs')}
-                          style={[
-                            styles.pillarPickOption,
-                            {
-                              backgroundColor:
-                                editPillar === 'needs'
-                                  ? theme.colors.pillar.needs
-                                  : theme.colors.bg.surfaceSubtle,
-                              borderRadius: theme.radii.sm,
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              theme.typography.caption,
-                              {
-                                color: editPillar === 'needs' ? '#FFF' : theme.colors.text.secondary,
-                                fontWeight: '700',
-                              },
-                            ]}
-                          >
-                            Besoins
-                          </Text>
-                        </Pressable>
-
-                        <Pressable
-                          onPress={() => setEditPillar('wants')}
-                          style={[
-                            styles.pillarPickOption,
-                            {
-                              backgroundColor:
-                                editPillar === 'wants'
-                                  ? theme.colors.pillar.wants
-                                  : theme.colors.bg.surfaceSubtle,
-                              borderRadius: theme.radii.sm,
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              theme.typography.caption,
-                              {
-                                color: editPillar === 'wants' ? '#FFF' : theme.colors.text.secondary,
-                                fontWeight: '700',
-                              },
-                            ]}
-                          >
-                            Envies
-                          </Text>
-                        </Pressable>
-
-                        <Pressable
-                          onPress={() => setEditPillar('savings')}
-                          style={[
-                            styles.pillarPickOption,
-                            {
-                              backgroundColor:
-                                editPillar === 'savings'
-                                  ? theme.colors.pillar.savings
-                                  : theme.colors.bg.surfaceSubtle,
-                              borderRadius: theme.radii.sm,
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              theme.typography.caption,
-                              {
-                                color: editPillar === 'savings' ? '#FFF' : theme.colors.text.secondary,
-                                fontWeight: '700',
-                              },
-                            ]}
-                          >
-                            Épargne
-                          </Text>
-                        </Pressable>
-                      </View>
-                    </>
-                  )}
-
-                  <View style={[styles.actionsRow, { marginTop: 20 }]}>
-                    <Pressable
-                      onPress={() => setIsEditing(false)}
-                      style={[
-                        styles.editBtn,
-                        {
-                          backgroundColor: theme.colors.bg.surfaceSubtle,
-                          borderRadius: theme.radii.md,
-                        },
-                      ]}
-                    >
-                      <Text style={[theme.typography.body, { color: theme.colors.text.secondary }]}>
-                        Annuler
-                      </Text>
-                    </Pressable>
-
-                    <Pressable
-                      onPress={handleSaveEdit}
-                      style={[
-                        styles.saveBtn,
-                        {
-                          backgroundColor: theme.colors.pillar.savings,
-                          borderRadius: theme.radii.md,
-                        },
-                      ]}
-                    >
-                      <Text style={[theme.typography.body, { color: '#FFF', fontWeight: '700' }]}>
-                        Enregistrer
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              )}
-            </Pressable>
-          </Pressable>
-        </Modal>
-      )}
+      <TransactionDetailModal
+        transaction={selectedTx}
+        visible={Boolean(selectedTx)}
+        startEditing={startEditing}
+        onClose={() => {
+          setSelectedTx(null);
+          setStartEditing(false);
+        }}
+      />
     </View>
   );
 }

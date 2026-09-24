@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
 import { BudgetProvider } from '../src/context/BudgetContext';
 import { QuickEntryProvider } from '../src/context/QuickEntryContext';
+import { DialogProvider } from '../src/context/DialogContext';
 
 function RootNavigation() {
   const { theme, isDark } = useTheme();
@@ -29,11 +30,13 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <BudgetProvider>
-          <QuickEntryProvider>
-            <RootNavigation />
-          </QuickEntryProvider>
-        </BudgetProvider>
+        <DialogProvider>
+          <BudgetProvider>
+            <QuickEntryProvider>
+              <RootNavigation />
+            </QuickEntryProvider>
+          </BudgetProvider>
+        </DialogProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

@@ -24,8 +24,9 @@ import { useQuickEntry } from '../../src/context/QuickEntryContext';
 import { DonutChart } from '../../src/components/DonutChart';
 import { PillarGauge } from '../../src/components/PillarGauge';
 import { Card } from '../../src/components/Card';
+import { TransactionDetailModal } from '../../src/components/TransactionDetailModal';
 import { formatCurrency } from '../../src/services/budgetEngine';
-import { PillarId } from '../../src/types/budget';
+import { PillarId, Transaction } from '../../src/types/budget';
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
@@ -42,6 +43,7 @@ export default function DashboardScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [highlightedPillar, setHighlightedPillar] = useState<PillarId | null>(null);
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
 
   const currency = settings?.currency || '€';
 
@@ -553,10 +555,12 @@ export default function DashboardScreen() {
             const isIncome = tx.type === 'income';
 
             return (
-              <View
+              <Pressable
                 key={tx.id}
-                style={[
+                onPress={() => setSelectedTx(tx)}
+                style={({ pressed }) => [
                   styles.txItem,
+                  { opacity: pressed ? 0.7 : 1 },
                   !isLast && {
                     borderBottomWidth: 1,
                     borderBottomColor: theme.colors.border.subtle,
@@ -606,11 +610,18 @@ export default function DashboardScreen() {
                   {isIncome ? '+' : '-'}
                   {formatCurrency(tx.amount, currency)}
                 </Text>
-              </View>
+              </Pressable>
             );
           })}
         </Card>
       )}
+
+      {/* Transaction Detail & Edit Modal */}
+      <TransactionDetailModal
+        transaction={selectedTx}
+        visible={Boolean(selectedTx)}
+        onClose={() => setSelectedTx(null)}
+      />
     </ScrollView>
   );
 }
