@@ -445,7 +445,7 @@ export default function DashboardScreen() {
       {/* 4. 3 Pillar Progress Gauges */}
       <View style={styles.sectionHeader}>
         <Text style={[theme.typography.title2, { color: theme.colors.text.primary }]}>
-          Piliers 50 / 30 / 20
+          Piliers {summary.pillars.needs.ratio} / {summary.pillars.wants.ratio} / {summary.pillars.savings.ratio}
         </Text>
       </View>
 
@@ -459,6 +459,7 @@ export default function DashboardScreen() {
         isOverBudget={summary.pillars.needs.isOverBudget}
         overrunAmount={summary.pillars.needs.overrunAmount}
         currency={currency}
+        onPress={() => router.push({ pathname: '/(tabs)/transactions', params: { filter: 'needs' } })}
       />
 
       <PillarGauge
@@ -471,6 +472,7 @@ export default function DashboardScreen() {
         isOverBudget={summary.pillars.wants.isOverBudget}
         overrunAmount={summary.pillars.wants.overrunAmount}
         currency={currency}
+        onPress={() => router.push({ pathname: '/(tabs)/transactions', params: { filter: 'wants' } })}
       />
 
       <PillarGauge
@@ -483,6 +485,7 @@ export default function DashboardScreen() {
         isOverBudget={summary.pillars.savings.isOverBudget}
         overrunAmount={summary.pillars.savings.overrunAmount}
         currency={currency}
+        onPress={() => router.push({ pathname: '/(tabs)/transactions', params: { filter: 'savings' } })}
       />
 
       {/* 5. Recent Transactions Preview */}

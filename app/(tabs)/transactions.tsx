@@ -26,6 +26,7 @@ import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useBudget } from '../../src/context/BudgetContext';
 import { useQuickEntry } from '../../src/context/QuickEntryContext';
+import { useLocalSearchParams } from 'expo-router';
 import { Pill } from '../../src/components/Pill';
 import { Card } from '../../src/components/Card';
 import { formatCurrency } from '../../src/services/budgetEngine';
@@ -36,12 +37,25 @@ type FilterType = 'all' | 'needs' | 'wants' | 'savings' | 'income';
 export default function TransactionsScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
+  const params = useLocalSearchParams<{ filter?: string }>();
   const { transactions, deleteTransaction, updateTransaction, settings } = useBudget();
   const { openQuickEntry } = useQuickEntry();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [activeFilter, setActiveFilter] = useState<FilterType>(() => {
+    if (params.filter && ['all', 'needs', 'wants', 'savings', 'income'].includes(params.filter)) {
+      return params.filter as FilterType;
+    }
+    return 'all';
+  });
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+
+  // Synchronize when route params change (e.g. redirected from Dashboard pillar card)
+  React.useEffect(() => {
+    if (params.filter && ['all', 'needs', 'wants', 'savings', 'income'].includes(params.filter)) {
+      setActiveFilter(params.filter as FilterType);
+    }
+  }, [params.filter]);
 
   // Edit State
   const [isEditing, setIsEditing] = useState(false);
