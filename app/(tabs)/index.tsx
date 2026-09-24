@@ -17,6 +17,7 @@ import {
   TrendingUp,
   Receipt,
   ArrowRight,
+  BarChart3,
 } from 'lucide-react-native';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useBudget } from '../../src/context/BudgetContext';
@@ -25,6 +26,7 @@ import { DonutChart } from '../../src/components/DonutChart';
 import { PillarGauge } from '../../src/components/PillarGauge';
 import { Card } from '../../src/components/Card';
 import { TransactionDetailModal } from '../../src/components/TransactionDetailModal';
+import { MonthlyOverviewModal } from '../../src/components/MonthlyOverviewModal';
 import { formatCurrency } from '../../src/services/budgetEngine';
 import { PillarId, Transaction } from '../../src/types/budget';
 
@@ -44,6 +46,7 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [highlightedPillar, setHighlightedPillar] = useState<PillarId | null>(null);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [showMonthlyOverview, setShowMonthlyOverview] = useState(false);
 
   const currency = settings?.currency || '€';
 
@@ -163,24 +166,41 @@ export default function DashboardScreen() {
           </Pressable>
         </View>
 
-        <View
-          style={[
-            styles.cycleBadge,
-            {
-              backgroundColor: theme.colors.bg.surfaceSubtle,
-              borderRadius: theme.radii.full,
-            },
-          ]}
-        >
-          <Text
+        <View style={styles.headerRightGroup}>
+          <View
             style={[
-              theme.typography.caption,
-              theme.typography.tabularNums,
-              { color: theme.colors.text.secondary, fontWeight: '600' },
+              styles.cycleBadge,
+              {
+                backgroundColor: theme.colors.bg.surfaceSubtle,
+                borderRadius: theme.radii.full,
+              },
             ]}
           >
-            {isCurrentMonth ? `Jour ${currentDay}/${totalDaysInMonth}` : 'Mois clos'}
-          </Text>
+            <Text
+              style={[
+                theme.typography.caption,
+                theme.typography.tabularNums,
+                { color: theme.colors.text.secondary, fontWeight: '600' },
+              ]}
+            >
+              {isCurrentMonth ? `Jour ${currentDay}/${totalDaysInMonth}` : 'Mois clos'}
+            </Text>
+          </View>
+
+          {/* Monthly Comparison Analytics Button */}
+          <Pressable
+            onPress={() => setShowMonthlyOverview(true)}
+            style={({ pressed }) => [
+              styles.analyticsBtn,
+              {
+                backgroundColor: theme.colors.bg.surfaceSubtle,
+                borderRadius: theme.radii.full,
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+          >
+            <BarChart3 size={17} color={theme.colors.pillar.savings} />
+          </Pressable>
         </View>
       </View>
 
@@ -630,6 +650,13 @@ export default function DashboardScreen() {
         visible={Boolean(selectedTx)}
         onClose={() => setSelectedTx(null)}
       />
+
+      {/* Monthly Overview Modal */}
+      <MonthlyOverviewModal
+        visible={showMonthlyOverview}
+        onClose={() => setShowMonthlyOverview(false)}
+        onSelectPeriod={(key) => setPeriodKey(key)}
+      />
     </ScrollView>
   );
 }
@@ -658,6 +685,17 @@ const styles = StyleSheet.create({
   cycleBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
+  },
+  headerRightGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  analyticsBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   heroCard: {
     marginBottom: 12,
