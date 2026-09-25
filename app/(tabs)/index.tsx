@@ -219,7 +219,7 @@ export default function DashboardScreen() {
                 },
               ]}
             >
-              Reste à vivre (B+E)
+              Reste à vivre
             </Text>
 
             <Text
