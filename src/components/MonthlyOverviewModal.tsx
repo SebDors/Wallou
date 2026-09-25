@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -32,7 +32,9 @@ export const MonthlyOverviewModal: React.FC<MonthlyOverviewModalProps> = ({
   const currency = settings?.currency || '€';
   const ratios = settings?.ratios || { needs: 50, wants: 30, savings: 20 };
 
-  // Generate list of months (last 6 months up to current period)
+  const chartScrollRef = useRef<ScrollView>(null);
+
+  // Generate list of months (only months from transactions + current period)
   const monthlyData = useMemo(() => {
     // Find all distinct months from transactions
     const periodSet = new Set<string>();
@@ -42,14 +44,6 @@ export const MonthlyOverviewModal: React.FC<MonthlyOverviewModalProps> = ({
       }
     });
     periodSet.add(currentPeriodKey);
-
-    // Also include the last 6 calendar months
-    const now = new Date();
-    for (let i = 0; i < 6; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      periodSet.add(key);
-    }
 
     const sortedKeys = Array.from(periodSet).sort();
 
@@ -68,7 +62,8 @@ export const MonthlyOverviewModal: React.FC<MonthlyOverviewModalProps> = ({
         summary,
         totalIncome: summary.totalIncome,
         totalExpenses: summary.totalExpenses,
-        netCashflow: summary.netCashflow,
+        netBalance: summary.netBalance,
+        resteAVivre: summary.resteAVivre,
         needsSpent: summary.pillars.needs.spent,
         wantsSpent: summary.pillars.wants.spent,
         savingsSpent: summary.pillars.savings.spent,
@@ -78,6 +73,15 @@ export const MonthlyOverviewModal: React.FC<MonthlyOverviewModalProps> = ({
       };
     });
   }, [transactions, ratios, currentPeriodKey]);
+
+  useEffect(() => {
+    if (visible) {
+      const timer = setTimeout(() => {
+        chartScrollRef.current?.scrollToEnd({ animated: false });
+      }, 80);
+      return () => clearTimeout(timer);
+    }
+  }, [visible, monthlyData]);
 
   // Find max value to normalize bar heights
   const maxVal = useMemo(() => {
@@ -145,9 +149,13 @@ export const MonthlyOverviewModal: React.FC<MonthlyOverviewModalProps> = ({
 
                   {/* Horizontal Scrollable Bar Chart */}
                   <ScrollView
+                    ref={chartScrollRef}
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.chartScrollContainer}
+                    onContentSizeChange={() => {
+                      chartScrollRef.current?.scrollToEnd({ animated: false });
+                    }}
                   >
                     {monthlyData.map((m) => {
                       const isCurrent = m.key === currentPeriodKey;
@@ -413,7 +421,7 @@ export const MonthlyOverviewModal: React.FC<MonthlyOverviewModalProps> = ({
 
                             <View style={styles.cashflowItem}>
                               <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
-                                Solde
+                                Restant
                               </Text>
                               <Text
                                 style={[
@@ -421,15 +429,15 @@ export const MonthlyOverviewModal: React.FC<MonthlyOverviewModalProps> = ({
                                   theme.typography.tabularNums,
                                   {
                                     color:
-                                      m.netCashflow >= 0
+                                      m.netBalance >= 0
                                         ? theme.colors.status.income
                                         : theme.colors.status.overrun,
                                     fontWeight: '700',
                                   },
                                 ]}
                               >
-                                {m.netCashflow >= 0 ? '+' : ''}
-                                {formatCurrency(m.netCashflow, currency)}
+                                {m.netBalance >= 0 ? '+' : ''}
+                                {formatCurrency(m.netBalance, currency)}
                               </Text>
                             </View>
                           </View>
