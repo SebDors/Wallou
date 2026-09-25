@@ -1,0 +1,74 @@
+name: Build & Release Android APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Generate Android project with Expo Prebuild
+        run: npx expo prebuild --platform android --clean
+
+      - name: Build Android Release APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Upload APK as Workflow Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wallou-app-release
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 14
+
+      - name: Publish APK to GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: android/app/build/outputs/apk/release/*.apk
+          draft: false
+          prerelease: false
+          name: Release ${{ github.ref_name }}
+          body: |
+            ### 📱 Application Wallou - Release ${{ github.ref_name }}
+            
+            Téléchargez le fichier `.apk` ci-dessous et installez-le directement sur votre smartphone Android pour tester l'application.
+            
+            #### Nouveautés incluses :
+            - 📊 Graphique Trade Republic avec scrubbing tactile continu au doigt (solde disponible au fil du mois)
+            - 🍩 Camembert 50/30/20 avec détection tactile étendue et infobulle extérieure
+            - 💰 Gestion des remboursements intégrée directement sur les dépenses avec badge net épuré
+            - 🗓️ Carte « Prochaine dépense à venir » avec calcul du solde prévisionnel
+            - 💡 Reste à vivre avec ligne « avec épargne » et dialogue explicatif (i)
+            - ⚙️ Gestion du changement de mois (remise à zéro, report du solde précédent ou liquidité fixe)
+            - ⌨️ Pavé numérique figé sans surélévation par le clavier système
