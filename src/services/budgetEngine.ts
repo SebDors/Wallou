@@ -97,19 +97,41 @@ export function calculateBudgetPeriodSummary(
     savings: 0,
   };
 
+  const expenseMap = new Map<string, Transaction>();
+  for (const t of periodTransactions) {
+    if (t.type === 'expense') {
+      expenseMap.set(t.id, t);
+    }
+  }
+
   for (const t of periodTransactions) {
     const amount = typeof t.amount === 'number' && !isNaN(t.amount) && t.amount > 0 ? t.amount : 0;
     if (t.type === 'income') {
       totalIncome += amount;
     } else if (t.type === 'expense') {
-      rawExpenses += amount;
+      const refunded = typeof t.refundedAmount === 'number' && !isNaN(t.refundedAmount) && t.refundedAmount > 0
+        ? Math.min(amount, t.refundedAmount)
+        : 0;
+      const netExpense = Math.max(0, amount - refunded);
+      rawExpenses += netExpense;
       if (t.pillarId && t.pillarId in pillarExpenses) {
-        pillarExpenses[t.pillarId] += amount;
+        pillarExpenses[t.pillarId] += netExpense;
       }
     } else if (t.type === 'refund') {
-      rawRefunds += amount;
-      if (t.pillarId && t.pillarId in pillarRefunds) {
-        pillarRefunds[t.pillarId] += amount;
+      // If legacy refund is already tracked on targetExpense.refundedAmount, avoid double deduction
+      let alreadyDeductedOnExpense = false;
+      if (t.targetExpenseIds && t.targetExpenseIds.length > 0) {
+        alreadyDeductedOnExpense = t.targetExpenseIds.some((targetId) => {
+          const target = expenseMap.get(targetId);
+          return Boolean(target && typeof target.refundedAmount === 'number' && target.refundedAmount > 0);
+        });
+      }
+
+      if (!alreadyDeductedOnExpense) {
+        rawRefunds += amount;
+        if (t.pillarId && t.pillarId in pillarRefunds) {
+          pillarRefunds[t.pillarId] += amount;
+        }
       }
     }
   }

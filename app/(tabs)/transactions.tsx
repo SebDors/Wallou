@@ -64,20 +64,21 @@ export default function TransactionsScreen() {
 
   const currency = settings?.currency || '€';
 
-  // Counts for pills
+  // Counts for pills (excluding phantom refund transactions)
   const counts = useMemo(() => {
+    const valid = transactions.filter((t) => t.type !== 'refund');
     return {
-      all: transactions.length,
-      needs: transactions.filter((t) => t.pillarId === 'needs').length,
-      wants: transactions.filter((t) => t.pillarId === 'wants').length,
-      savings: transactions.filter((t) => t.pillarId === 'savings').length,
-      income: transactions.filter((t) => t.type === 'income').length,
+      all: valid.length,
+      needs: valid.filter((t) => t.pillarId === 'needs').length,
+      wants: valid.filter((t) => t.pillarId === 'wants').length,
+      savings: valid.filter((t) => t.pillarId === 'savings').length,
+      income: valid.filter((t) => t.type === 'income').length,
     };
   }, [transactions]);
 
-  // Filtered transactions
+  // Filtered transactions (excluding phantom refund transactions)
   const filteredTransactions = useMemo(() => {
-    let result = [...transactions];
+    let result = transactions.filter((t) => t.type !== 'refund');
 
     // Filter by type / pillar
     if (activeFilter === 'needs') {
@@ -357,25 +358,24 @@ export default function TransactionsScreen() {
                         style={[
                           styles.refundBadge,
                           {
-                            backgroundColor: theme.colors.pillar.savingsBg,
-                            borderColor: theme.colors.pillar.savings,
+                            backgroundColor: theme.colors.bg.surfaceSubtle,
                             borderRadius: theme.radii.sm,
                           },
                         ]}
                       >
-                        <RotateCcw size={10} color={theme.colors.pillar.savings} style={{ marginRight: 4 }} />
+                        <RotateCcw size={10} color={theme.colors.text.secondary} style={{ marginRight: 4 }} />
                         <Text
                           style={[
                             theme.typography.caption,
                             theme.typography.tabularNums,
                             {
-                              color: theme.colors.pillar.savings,
+                              color: theme.colors.text.secondary,
                               fontWeight: '600',
                               fontSize: 11,
                             },
                           ]}
                         >
-                          Remboursé : {formatCurrency(item.refundedAmount || 0, currency)} (net : {formatCurrency(Math.max(0, item.amount - (item.refundedAmount || 0)), currency)})
+                          Remboursement : {formatCurrency(item.refundedAmount || 0, currency)} ({formatCurrency(Math.max(0, item.amount - (item.refundedAmount || 0)), currency)} restants)
                         </Text>
                       </View>
                     )}
@@ -534,7 +534,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: 7,
     paddingVertical: 2,
-    borderWidth: 1,
+    borderWidth: 0,
     marginTop: 3,
     marginBottom: 2,
   },

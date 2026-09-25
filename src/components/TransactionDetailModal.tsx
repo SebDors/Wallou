@@ -49,8 +49,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
       setEditPillar(transaction.pillarId || 'needs');
       setIsEditing(startEditing);
       setIsRefunding(false);
-      const remainingRefundable = Math.max(0, transaction.amount - (transaction.refundedAmount || 0));
-      setRefundAmount(remainingRefundable > 0 ? String(remainingRefundable) : '');
+      setRefundAmount('');
     }
   }, [transaction, startEditing, visible]);
 
@@ -126,34 +125,35 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
 
   const handleConfirmRefund = async () => {
     if (!transaction) return;
-    const maxRefundable = Math.max(0, transaction.amount - (transaction.refundedAmount || 0));
-    const parsed = parseFloat(refundAmount.replace(',', '.'));
 
-    if (isNaN(parsed) || parsed <= 0) {
-      showError('Montant invalide', 'Veuillez saisir un montant positif.');
-      return;
-    }
+    const trimmed = refundAmount.trim();
+    let newRefundAmount = 0;
 
-    if (parsed > maxRefundable) {
-      showError(
-        'Montant trop élevé',
-        `Le montant maximum remboursable pour cette opération est de ${formatCurrency(maxRefundable, currency)}.`
-      );
-      return;
+    // Allow empty or 0 to reset/cancel refund
+    if (trimmed !== '') {
+      const parsed = parseFloat(trimmed.replace(',', '.'));
+      if (isNaN(parsed) || parsed < 0) {
+        showError('Montant invalide', 'Veuillez saisir un montant positif ou 0 pour annuler.');
+        return;
+      }
+      if (parsed > transaction.amount) {
+        showError(
+          'Montant trop élevé',
+          `Le montant remboursé ne peut pas dépasser le montant total de l'opération (${formatCurrency(transaction.amount, currency)}).`
+        );
+        return;
+      }
+      newRefundAmount = Number(parsed.toFixed(2));
     }
 
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {}
 
-    await addTransaction({
-      type: 'refund',
-      amount: parsed,
-      pillarId: transaction.pillarId,
-      category: 'Remboursement',
-      title: `Remboursement ${transaction.title}`,
-      date: new Date().toISOString(),
-      targetExpenseIds: [transaction.id],
+    // Directly update refundedAmount on existing transaction (no separate transaction created)
+    await updateTransaction({
+      ...transaction,
+      refundedAmount: newRefundAmount,
     });
 
     setIsRefunding(false);
@@ -258,24 +258,45 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                     ]}
                   />
 
-                  <Pressable
-                    onPress={() => {
-                      const maxRef = Math.max(0, transaction.amount - (transaction.refundedAmount || 0));
-                      setRefundAmount(String(maxRef));
-                    }}
-                    style={[
-                      styles.quickMaxBtn,
-                      {
-                        borderColor: theme.colors.border.subtle,
-                        borderRadius: theme.radii.full,
-                        backgroundColor: theme.colors.bg.surfaceSubtle,
-                      },
-                    ]}
-                  >
-                    <Text style={[theme.typography.caption, { color: theme.colors.pillar.savings, fontWeight: '600' }]}>
-                      Rembourser la totalité ({formatCurrency(Math.max(0, transaction.amount - (transaction.refundedAmount || 0)), currency)})
-                    </Text>
-                  </Pressable>
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                    <Pressable
+                      onPress={() => {
+                        setRefundAmount(String(transaction.amount));
+                      }}
+                      style={[
+                        styles.quickMaxBtn,
+                        {
+                          borderColor: theme.colors.border.subtle,
+                          borderRadius: theme.radii.full,
+                          backgroundColor: theme.colors.bg.surfaceSubtle,
+                        },
+                      ]}
+                    >
+                      <Text style={[theme.typography.caption, { color: theme.colors.pillar.savings, fontWeight: '600' }]}>
+                        Rembourser la totalité ({formatCurrency(transaction.amount, currency)})
+                      </Text>
+                    </Pressable>
+
+                    {Boolean(transaction.refundedAmount && transaction.refundedAmount > 0) && (
+                      <Pressable
+                        onPress={() => {
+                          setRefundAmount('0');
+                        }}
+                        style={[
+                          styles.quickMaxBtn,
+                          {
+                            borderColor: theme.colors.border.subtle,
+                            borderRadius: theme.radii.full,
+                            backgroundColor: theme.colors.bg.surfaceSubtle,
+                          },
+                        ]}
+                      >
+                        <Text style={[theme.typography.caption, { color: theme.colors.status.overrun, fontWeight: '600' }]}>
+                          Annuler le remboursement (0 €)
+                        </Text>
+                      </Pressable>
+                    )}
+                  </View>
 
                   <View style={[styles.actionsRow, { marginTop: 16 }]}>
                     <Pressable
