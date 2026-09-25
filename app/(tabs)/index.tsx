@@ -23,6 +23,7 @@ import { useTheme } from '../../src/context/ThemeContext';
 import { useBudget } from '../../src/context/BudgetContext';
 import { useQuickEntry } from '../../src/context/QuickEntryContext';
 import { DonutChart } from '../../src/components/DonutChart';
+import { MonthlySpendingCurveChart } from '../../src/components/MonthlySpendingCurveChart';
 import { PillarGauge } from '../../src/components/PillarGauge';
 import { Card } from '../../src/components/Card';
 import { TransactionDetailModal } from '../../src/components/TransactionDetailModal';
@@ -46,6 +47,10 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [showMonthlyOverview, setShowMonthlyOverview] = useState(false);
+
+  const [activeChartSlide, setActiveChartSlide] = useState(0);
+  const chartScrollRef = React.useRef<ScrollView>(null);
+  const [carouselWidth, setCarouselWidth] = useState(0);
 
   const currency = settings?.currency || '€';
 
@@ -358,88 +363,181 @@ export default function DashboardScreen() {
         </View>
       </Card>
 
-      {/* 3. Donut Chart Section */}
-      <View style={[styles.chartSection, { marginVertical: theme.spacing.lg }]}>
-        <DonutChart
-          needsSpent={summary.pillars.needs.spent}
-          wantsSpent={summary.pillars.wants.spent}
-          savingsSpent={summary.pillars.savings.spent}
-          needsAllocated={summary.pillars.needs.allocated}
-          wantsAllocated={summary.pillars.wants.allocated}
-          savingsAllocated={summary.pillars.savings.allocated}
-          ratios={settings?.ratios || { needs: 50, wants: 30, savings: 20 }}
-          centerLabel="Dépenses totales"
-          centerValue={formatCurrency(summary.totalExpenses, currency)}
-          currency={currency}
-        />
-
-        {/* 3 Pillar Legends (single line, non-clickable) */}
-        <View style={styles.legendRow}>
-          <View
-            style={[
-              styles.legendItem,
-              { backgroundColor: theme.colors.bg.surfaceSubtle },
-            ]}
-          >
-            <View
-              style={[
-                styles.legendDot,
-                { backgroundColor: theme.colors.pillar.needs },
-              ]}
+      {/* 3. Charts Carousel Section (Donut Chart & Monthly Evolution Curve) */}
+      <View
+        style={[styles.chartSection, { marginVertical: theme.spacing.md }]}
+        onLayout={(e) => {
+          const w = e.nativeEvent.layout.width;
+          if (w > 0) setCarouselWidth(w);
+        }}
+      >
+        <ScrollView
+          ref={chartScrollRef}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={(e) => {
+            const offsetX = e.nativeEvent.contentOffset.x;
+            const w = carouselWidth || 340;
+            const newIndex = Math.round(offsetX / w);
+            setActiveChartSlide(newIndex);
+          }}
+          style={{ width: '100%' }}
+        >
+          {/* Slide 1: Donut Chart + 3 Pillar Legends */}
+          <View style={{ width: carouselWidth || 340, alignItems: 'center' }}>
+            <DonutChart
+              needsSpent={summary.pillars.needs.spent}
+              wantsSpent={summary.pillars.wants.spent}
+              savingsSpent={summary.pillars.savings.spent}
+              needsAllocated={summary.pillars.needs.allocated}
+              wantsAllocated={summary.pillars.wants.allocated}
+              savingsAllocated={summary.pillars.savings.allocated}
+              ratios={settings?.ratios || { needs: 50, wants: 30, savings: 20 }}
+              centerLabel="Dépenses totales"
+              centerValue={formatCurrency(summary.totalExpenses, currency)}
+              currency={currency}
             />
-            <Text
-              style={[
-                theme.typography.caption,
-                { color: theme.colors.text.primary, fontWeight: '600' },
-              ]}
-            >
-              Besoins {summary.pillars.needs.ratio}%
-            </Text>
+
+            {/* 3 Pillar Legends (single line, non-clickable) */}
+            <View style={styles.legendRow}>
+              <View
+                style={[
+                  styles.legendItem,
+                  { backgroundColor: theme.colors.bg.surfaceSubtle },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.legendDot,
+                    { backgroundColor: theme.colors.pillar.needs },
+                  ]}
+                />
+                <Text
+                  style={[
+                    theme.typography.caption,
+                    { color: theme.colors.text.primary, fontWeight: '600' },
+                  ]}
+                >
+                  Besoins {summary.pillars.needs.ratio}%
+                </Text>
+              </View>
+
+              <View
+                style={[
+                  styles.legendItem,
+                  { backgroundColor: theme.colors.bg.surfaceSubtle },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.legendDot,
+                    { backgroundColor: theme.colors.pillar.wants },
+                  ]}
+                />
+                <Text
+                  style={[
+                    theme.typography.caption,
+                    { color: theme.colors.text.primary, fontWeight: '600' },
+                  ]}
+                >
+                  Envies {summary.pillars.wants.ratio}%
+                </Text>
+              </View>
+
+              <View
+                style={[
+                  styles.legendItem,
+                  { backgroundColor: theme.colors.bg.surfaceSubtle },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.legendDot,
+                    { backgroundColor: theme.colors.pillar.savings },
+                  ]}
+                />
+                <Text
+                  style={[
+                    theme.typography.caption,
+                    { color: theme.colors.text.primary, fontWeight: '600' },
+                  ]}
+                >
+                  Épargne {summary.pillars.savings.ratio}%
+                </Text>
+              </View>
+            </View>
           </View>
 
-          <View
+          {/* Slide 2: Monthly Spending Curve Chart */}
+          <View style={{ width: carouselWidth || 340, alignItems: 'center' }}>
+            <MonthlySpendingCurveChart
+              transactions={summary.transactions}
+              totalIncome={summary.totalIncome}
+              periodKey={currentPeriodKey}
+              currency={currency}
+              width={carouselWidth || 340}
+              height={200}
+            />
+          </View>
+        </ScrollView>
+
+        {/* Carousel Navigation: Arrows & Pagination Dots */}
+        <View style={styles.carouselNavRow}>
+          <Pressable
+            onPress={() => {
+              chartScrollRef.current?.scrollTo({ x: 0, animated: true });
+              setActiveChartSlide(0);
+            }}
+            hitSlop={10}
             style={[
-              styles.legendItem,
-              { backgroundColor: theme.colors.bg.surfaceSubtle },
+              styles.carouselArrowBtn,
+              { opacity: activeChartSlide === 0 ? 0.35 : 1 },
             ]}
           >
-            <View
+            <ChevronLeft size={18} color={theme.colors.text.secondary} />
+          </Pressable>
+
+          <View style={styles.carouselDotsRow}>
+            <Pressable
+              onPress={() => {
+                chartScrollRef.current?.scrollTo({ x: 0, animated: true });
+                setActiveChartSlide(0);
+              }}
               style={[
-                styles.legendDot,
-                { backgroundColor: theme.colors.pillar.wants },
+                styles.carouselDot,
+                activeChartSlide === 0
+                  ? [styles.carouselDotActive, { backgroundColor: theme.colors.pillar.savings }]
+                  : { backgroundColor: theme.colors.border.subtle },
               ]}
             />
-            <Text
+            <Pressable
+              onPress={() => {
+                chartScrollRef.current?.scrollTo({ x: carouselWidth || 340, animated: true });
+                setActiveChartSlide(1);
+              }}
               style={[
-                theme.typography.caption,
-                { color: theme.colors.text.primary, fontWeight: '600' },
+                styles.carouselDot,
+                activeChartSlide === 1
+                  ? [styles.carouselDotActive, { backgroundColor: theme.colors.pillar.savings }]
+                  : { backgroundColor: theme.colors.border.subtle },
               ]}
-            >
-              Envies {summary.pillars.wants.ratio}%
-            </Text>
+            />
           </View>
 
-          <View
+          <Pressable
+            onPress={() => {
+              chartScrollRef.current?.scrollTo({ x: carouselWidth || 340, animated: true });
+              setActiveChartSlide(1);
+            }}
+            hitSlop={10}
             style={[
-              styles.legendItem,
-              { backgroundColor: theme.colors.bg.surfaceSubtle },
+              styles.carouselArrowBtn,
+              { opacity: activeChartSlide === 1 ? 0.35 : 1 },
             ]}
           >
-            <View
-              style={[
-                styles.legendDot,
-                { backgroundColor: theme.colors.pillar.savings },
-              ]}
-            />
-            <Text
-              style={[
-                theme.typography.caption,
-                { color: theme.colors.text.primary, fontWeight: '600' },
-              ]}
-            >
-              Épargne {summary.pillars.savings.ratio}%
-            </Text>
-          </View>
+            <ChevronRight size={18} color={theme.colors.text.secondary} />
+          </Pressable>
         </View>
       </View>
 
@@ -718,6 +816,35 @@ const styles = StyleSheet.create({
   },
   chartSection: {
     alignItems: 'center',
+    width: '100%',
+  },
+  carouselNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    marginTop: 10,
+  },
+  carouselArrowBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  carouselDotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  carouselDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  carouselDotActive: {
+    width: 18,
+    height: 6,
+    borderRadius: 3,
   },
   legendRow: {
     flexDirection: 'row',
