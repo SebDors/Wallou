@@ -281,6 +281,93 @@ describe('budgetEngine', () => {
       // Savings: allocated 400, spent 0, remaining 400
       expect(summary.pillars.savings.spent).toBe(0);
       expect(summary.pillars.savings.remaining).toBe(400);
+      // Reste à vivre: 1000 + 530 = 1530
+      expect(summary.resteAVivre).toBe(1530);
+    });
+
+    it('handles refund when refund transaction appears before expense (newest-first ordering)', () => {
+      const ratios = { needs: 50, wants: 30, savings: 20 };
+      const periodKey = '2026-09';
+      const transactions: Transaction[] = [
+        // Refund appears first in array
+        {
+          id: 'refund-1',
+          type: 'refund',
+          amount: 50,
+          pillarId: 'needs',
+          category: 'Remboursement',
+          title: 'Remboursement mutuelle',
+          date: '2026-09-10T12:00:00.000Z',
+          createdAt: '2026-09-10T12:00:00.000Z',
+          updatedAt: '2026-09-10T12:00:00.000Z',
+        },
+        // Expense appears second
+        {
+          id: 'exp-1',
+          type: 'expense',
+          amount: 200,
+          pillarId: 'needs',
+          category: 'Santé',
+          title: 'Médecin',
+          date: '2026-09-05T10:00:00.000Z',
+          createdAt: '2026-09-05T10:00:00.000Z',
+          updatedAt: '2026-09-05T10:00:00.000Z',
+        },
+        {
+          id: 'inc-1',
+          type: 'income',
+          amount: 2000,
+          category: 'Salaire',
+          title: 'Salaire',
+          date: '2026-09-01T09:00:00.000Z',
+          createdAt: '2026-09-01T09:00:00.000Z',
+          updatedAt: '2026-09-01T09:00:00.000Z',
+        },
+      ];
+
+      const summary = calculateBudgetPeriodSummary(transactions, ratios, periodKey);
+      // Total expenses: 200 - 50 = 150
+      expect(summary.totalExpenses).toBe(150);
+      // Needs: allocated 1000, spent 150, remaining 850
+      expect(summary.pillars.needs.spent).toBe(150);
+      expect(summary.pillars.needs.remaining).toBe(850);
+      // Reste à vivre: needs (850) + wants (600) = 1450
+      expect(summary.resteAVivre).toBe(1450);
+    });
+
+    it('correctly boosts remaining and reste à vivre when refund has no prior expense', () => {
+      const ratios = { needs: 50, wants: 30, savings: 20 };
+      const periodKey = '2026-09';
+      const transactions: Transaction[] = [
+        {
+          id: 'inc-1',
+          type: 'income',
+          amount: 2000,
+          category: 'Salaire',
+          title: 'Salaire',
+          date: '2026-09-01T09:00:00.000Z',
+          createdAt: '2026-09-01T09:00:00.000Z',
+          updatedAt: '2026-09-01T09:00:00.000Z',
+        },
+        {
+          id: 'refund-1',
+          type: 'refund',
+          amount: 100,
+          pillarId: 'needs',
+          category: 'Remboursement',
+          title: 'Remboursement',
+          date: '2026-09-05T10:00:00.000Z',
+          createdAt: '2026-09-05T10:00:00.000Z',
+          updatedAt: '2026-09-05T10:00:00.000Z',
+        },
+      ];
+
+      const summary = calculateBudgetPeriodSummary(transactions, ratios, periodKey);
+      expect(summary.totalExpenses).toBe(0);
+      expect(summary.pillars.needs.spent).toBe(0);
+      expect(summary.pillars.needs.remaining).toBe(1100); // 1000 allocated + 100 refund
+      expect(summary.pillars.wants.remaining).toBe(600);
+      expect(summary.resteAVivre).toBe(1700); // 1100 + 600
     });
   });
 

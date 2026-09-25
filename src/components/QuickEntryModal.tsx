@@ -11,7 +11,7 @@ import {
   TouchableWithoutFeedback,
   ScrollView,
 } from 'react-native';
-import { X, ArrowDownCircle, ArrowUpCircle, Plus, RotateCcw, Check } from 'lucide-react-native';
+import { X, ArrowDownCircle, ArrowUpCircle, Plus, RotateCcw } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../context/ThemeContext';
 import { useBudget } from '../context/BudgetContext';
@@ -39,24 +39,10 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [isAddingCategory, setIsAddingCategory] = useState<boolean>(false);
   const [newCategoryName, setNewCategoryName] = useState<string>('');
-  const [selectedExpenseIds, setSelectedExpenseIds] = useState<string[]>([]);
   const [txType, setTxType] = useState<TransactionType>('expense');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const lastSubmitTimeRef = useRef<number>(0);
-
-  const eligibleExpenses = useMemo(() => {
-    return transactions.filter(
-      (t) => t.type === 'expense' && t.date.startsWith(currentPeriodKey)
-    );
-  }, [transactions, currentPeriodKey]);
-
-  const selectedExpenses = useMemo(() => {
-    return transactions.filter((t) => selectedExpenseIds.includes(t.id));
-  }, [transactions, selectedExpenseIds]);
-
-  const lockedPillar: PillarId | undefined =
-    selectedExpenses.length > 0 ? selectedExpenses[0].pillarId : undefined;
 
   const resetForm = useCallback(() => {
     setAmountStr('0');
@@ -64,7 +50,6 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
     setSelectedCategory('');
     setIsAddingCategory(false);
     setNewCategoryName('');
-    setSelectedExpenseIds([]);
     setTxType('expense');
     setErrorMessage(null);
   }, []);
@@ -145,17 +130,13 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
       (txType === 'income'
         ? 'Revenu'
         : txType === 'refund'
-        ? selectedExpenses.length > 0
-          ? `Remboursement (${selectedExpenses.map((e) => e.title).join(', ')})`
-          : 'Remboursement'
+        ? `Remboursement ${PILLAR_NAMES[pillar || 'needs']}`
         : 'Dépense rapide');
 
     const effectivePillar: PillarId | undefined =
-      txType === 'refund'
-        ? lockedPillar || pillar || 'needs'
-        : txType === 'expense'
-        ? pillar || 'needs'
-        : undefined;
+      txType === 'income'
+        ? undefined
+        : pillar || 'needs';
 
     const finalCategory =
       selectedCategory.trim() ||
@@ -180,10 +161,6 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
       category: finalCategory,
       title: finalTitle,
       date: nowIso,
-      targetExpenseIds:
-        txType === 'refund' && selectedExpenseIds.length > 0
-          ? selectedExpenseIds
-          : undefined,
     }).catch((err) => {
       console.error('Failed to add transaction from QuickEntryModal:', err);
     });
@@ -550,75 +527,6 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
                 </ScrollView>
               </View>
 
-              {/* Linked Expense Selector for Refunds */}
-              {txType === 'refund' && eligibleExpenses.length > 0 && (
-                <View style={styles.refundExpenseSection}>
-                  <Text
-                    style={[
-                      theme.typography.caption,
-                      { color: theme.colors.text.secondary, marginBottom: 6, fontWeight: '600' },
-                    ]}
-                  >
-                    Dépense à rembourser (optionnel) :
-                  </Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.refundExpenseScroll}
-                    keyboardShouldPersistTaps="handled"
-                  >
-                    {eligibleExpenses.map((exp) => {
-                      const isSelected = selectedExpenseIds.includes(exp.id);
-                      const remb = exp.refundedAmount || 0;
-                      const remaining = Math.max(0, exp.amount - remb);
-                      return (
-                        <Pressable
-                          key={exp.id}
-                          onPress={() => {
-                            if (isSelected) {
-                              setSelectedExpenseIds((prev) => prev.filter((id) => id !== exp.id));
-                            } else {
-                              setSelectedExpenseIds((prev) => [...prev, exp.id]);
-                              if (amountStr === '0') {
-                                setAmountStr(remaining.toString());
-                              }
-                              if (!title.trim()) {
-                                setTitle(`Remboursement ${exp.title}`);
-                              }
-                            }
-                          }}
-                          style={[
-                            styles.refundExpenseChip,
-                            {
-                              backgroundColor: isSelected
-                                ? theme.colors.pillar.savings
-                                : theme.colors.bg.surfaceSubtle,
-                              borderColor: isSelected
-                                ? theme.colors.pillar.savings
-                                : theme.colors.border.subtle,
-                              borderRadius: theme.radii.full,
-                            },
-                          ]}
-                        >
-                          {isSelected && <Check size={12} color="#FFFFFF" style={{ marginRight: 4 }} />}
-                          <Text
-                            style={[
-                              theme.typography.caption,
-                              {
-                                color: isSelected ? '#FFFFFF' : theme.colors.text.primary,
-                                fontWeight: isSelected ? '700' : '500',
-                              },
-                            ]}
-                          >
-                            {exp.title} ({remaining} {currencySymbol})
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              )}
-
               {/* Custom Numeric Keypad (Tap 1) */}
               <View style={styles.keypadWrapper}>
                 <NumericKeypad
@@ -683,73 +591,52 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
                   </Pressable>
                 </View>
               ) : txType === 'refund' ? (
-                lockedPillar ? (
-                  <View style={styles.singleActionRow}>
-                    <Pressable
-                      onPress={() => handleSubmit(lockedPillar)}
-                      style={({ pressed }) => [
-                        styles.incomeButton,
-                        {
-                          backgroundColor:
-                            theme.colors.pillar[lockedPillar] || theme.colors.pillar.savings,
-                          borderRadius: theme.radii.lg,
-                          opacity: pressed ? 0.8 : 1,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.incomeBtnText}>
-                        Rembourser {PILLAR_NAMES[lockedPillar]}
-                      </Text>
-                    </Pressable>
-                  </View>
-                ) : (
-                  <View style={styles.pillarActionsRow}>
-                    <Pressable
-                      onPress={() => handleSubmit('needs')}
-                      style={({ pressed }) => [
-                        styles.pillarButton,
-                        {
-                          backgroundColor: theme.colors.pillar.needs,
-                          borderRadius: theme.radii.lg,
-                          opacity: pressed ? 0.8 : 1,
-                        },
-                      ]}
-                    >
-                      <RotateCcw size={16} color="#FFFFFF" />
-                      <Text style={[styles.pillarBtnLabel, { marginTop: 4 }]}>Besoins</Text>
-                    </Pressable>
+                <View style={styles.pillarActionsRow}>
+                  <Pressable
+                    onPress={() => handleSubmit('needs')}
+                    style={({ pressed }) => [
+                      styles.pillarButton,
+                      {
+                        backgroundColor: theme.colors.pillar.needs,
+                        borderRadius: theme.radii.lg,
+                        opacity: pressed ? 0.8 : 1,
+                      },
+                    ]}
+                  >
+                    <RotateCcw size={16} color="#FFFFFF" />
+                    <Text style={[styles.pillarBtnLabel, { marginTop: 4 }]}>Besoins</Text>
+                  </Pressable>
 
-                    <Pressable
-                      onPress={() => handleSubmit('wants')}
-                      style={({ pressed }) => [
-                        styles.pillarButton,
-                        {
-                          backgroundColor: theme.colors.pillar.wants,
-                          borderRadius: theme.radii.lg,
-                          opacity: pressed ? 0.8 : 1,
-                        },
-                      ]}
-                    >
-                      <RotateCcw size={16} color="#FFFFFF" />
-                      <Text style={[styles.pillarBtnLabel, { marginTop: 4 }]}>Envies</Text>
-                    </Pressable>
+                  <Pressable
+                    onPress={() => handleSubmit('wants')}
+                    style={({ pressed }) => [
+                      styles.pillarButton,
+                      {
+                        backgroundColor: theme.colors.pillar.wants,
+                        borderRadius: theme.radii.lg,
+                        opacity: pressed ? 0.8 : 1,
+                      },
+                    ]}
+                  >
+                    <RotateCcw size={16} color="#FFFFFF" />
+                    <Text style={[styles.pillarBtnLabel, { marginTop: 4 }]}>Envies</Text>
+                  </Pressable>
 
-                    <Pressable
-                      onPress={() => handleSubmit('savings')}
-                      style={({ pressed }) => [
-                        styles.pillarButton,
-                        {
-                          backgroundColor: theme.colors.pillar.savings,
-                          borderRadius: theme.radii.lg,
-                          opacity: pressed ? 0.8 : 1,
-                        },
-                      ]}
-                    >
-                      <RotateCcw size={16} color="#FFFFFF" />
-                      <Text style={[styles.pillarBtnLabel, { marginTop: 4 }]}>Épargne</Text>
-                    </Pressable>
-                  </View>
-                )
+                  <Pressable
+                    onPress={() => handleSubmit('savings')}
+                    style={({ pressed }) => [
+                      styles.pillarButton,
+                      {
+                        backgroundColor: theme.colors.pillar.savings,
+                        borderRadius: theme.radii.lg,
+                        opacity: pressed ? 0.8 : 1,
+                      },
+                    ]}
+                  >
+                    <RotateCcw size={16} color="#FFFFFF" />
+                    <Text style={[styles.pillarBtnLabel, { marginTop: 4 }]}>Épargne</Text>
+                  </Pressable>
+                </View>
               ) : (
                 <View style={styles.singleActionRow}>
                   <Pressable
@@ -914,21 +801,5 @@ const styles = StyleSheet.create({
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  refundExpenseSection: {
-    marginBottom: 10,
-  },
-  refundExpenseScroll: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 2,
-  },
-  refundExpenseChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderWidth: 1,
   },
 });

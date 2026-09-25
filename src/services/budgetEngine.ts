@@ -84,8 +84,14 @@ export function calculateBudgetPeriodSummary(
   );
 
   let totalIncome = 0;
-  let totalExpenses = 0;
+  let rawExpenses = 0;
+  let rawRefunds = 0;
   const pillarExpenses: Record<PillarId, number> = {
+    needs: 0,
+    wants: 0,
+    savings: 0,
+  };
+  const pillarRefunds: Record<PillarId, number> = {
     needs: 0,
     wants: 0,
     savings: 0,
@@ -96,21 +102,20 @@ export function calculateBudgetPeriodSummary(
     if (t.type === 'income') {
       totalIncome += amount;
     } else if (t.type === 'expense') {
-      totalExpenses += amount;
+      rawExpenses += amount;
       if (t.pillarId && t.pillarId in pillarExpenses) {
         pillarExpenses[t.pillarId] += amount;
       }
     } else if (t.type === 'refund') {
-      // Refunds decrease total expenses and reduce spent amount in the target pillar
-      totalExpenses -= amount;
-      if (t.pillarId && t.pillarId in pillarExpenses) {
-        pillarExpenses[t.pillarId] = Math.max(0, pillarExpenses[t.pillarId] - amount);
+      rawRefunds += amount;
+      if (t.pillarId && t.pillarId in pillarRefunds) {
+        pillarRefunds[t.pillarId] += amount;
       }
     }
   }
 
   totalIncome = round2(totalIncome);
-  totalExpenses = round2(Math.max(0, totalExpenses));
+  const totalExpenses = round2(Math.max(0, rawExpenses - rawRefunds));
 
   const allocations = calculateAllocations(totalIncome, ratios);
 
@@ -119,10 +124,12 @@ export function calculateBudgetPeriodSummary(
 
   for (const key of pillarKeys) {
     const allocated = allocations[key];
-    const spent = round2(pillarExpenses[key]);
-    const remaining = round2(allocated - spent);
-    const isOverBudget = spent > allocated;
-    const overrunAmount = isOverBudget ? round2(spent - allocated) : 0;
+    const exp = pillarExpenses[key];
+    const ref = pillarRefunds[key];
+    const spent = round2(Math.max(0, exp - ref));
+    const remaining = round2(allocated - exp + ref);
+    const isOverBudget = remaining < 0;
+    const overrunAmount = isOverBudget ? round2(Math.abs(remaining)) : 0;
 
     let percentSpent: number;
     let status: PillarStatus;
@@ -160,7 +167,7 @@ export function calculateBudgetPeriodSummary(
     };
   }
 
-  const netBalance = round2(totalIncome - totalExpenses);
+  const netBalance = round2(totalIncome - (rawExpenses - rawRefunds));
   const resteAVivre = round2(pillars.needs.remaining + pillars.wants.remaining);
 
   return {

@@ -113,7 +113,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
       ...transaction,
       title: editTitle.trim() || transaction.title,
       amount: parsed,
-      pillarId: transaction.type === 'expense' ? editPillar : undefined,
+      pillarId: transaction.type !== 'income' ? editPillar : undefined,
     });
     onClose();
   };
