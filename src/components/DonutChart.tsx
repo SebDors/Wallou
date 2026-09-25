@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { PillarId } from '../types/budget';
+import { PillarId, PILLAR_NAMES } from '../types/budget';
 import { useTheme } from '../context/ThemeContext';
 
 export interface DonutChartProps {
@@ -14,6 +14,7 @@ export interface DonutChartProps {
   ratios?: { needs: number; wants: number; savings: number };
   centerLabel?: string;
   centerValue?: string;
+  currency?: string;
   onSelectPillar?: (pillar: PillarId) => void;
   size?: number;
   strokeWidth?: number;
@@ -29,11 +30,13 @@ export const DonutChart: React.FC<DonutChartProps> = ({
   ratios = { needs: 50, wants: 30, savings: 20 },
   centerLabel = 'Reste à vivre',
   centerValue,
+  currency = '€',
   onSelectPillar,
   size = 200,
   strokeWidth = 16,
 }) => {
   const { theme } = useTheme();
+  const [selectedTooltipPillar, setSelectedTooltipPillar] = useState<PillarId | null>(null);
 
   const radius = (size - strokeWidth) / 2;
   const center = size / 2;
@@ -91,16 +94,39 @@ export const DonutChart: React.FC<DonutChartProps> = ({
     // Update currentEndAngle for next pillar
     currentEndAngle -= allocatedAngle;
 
+    const midAngle = allocatedStartAngle + allocatedAngle / 2;
+
     return {
       ...p,
+      name: PILLAR_NAMES[p.pillar],
       allocatedAngle,
       allocatedLength,
       allocatedStartAngle,
+      midAngle,
       usageFraction,
       spentLength,
       spentStartAngle,
     };
   });
+
+  const handlePillarPress = (pillar: PillarId) => {
+    setSelectedTooltipPillar((prev) => (prev === pillar ? null : pillar));
+    onSelectPillar?.(pillar);
+  };
+
+  const activeSegment = useMemo(() => {
+    if (!selectedTooltipPillar) return null;
+    return segments.find((s) => s.pillar === selectedTooltipPillar) || null;
+  }, [selectedTooltipPillar, segments]);
+
+  const bubblePosition = useMemo(() => {
+    if (!activeSegment) return null;
+    const rad = (activeSegment.midAngle * Math.PI) / 180;
+    const dist = radius * 0.58;
+    const x = center + dist * Math.cos(rad);
+    const y = center + dist * Math.sin(rad);
+    return { x, y };
+  }, [activeSegment, center, radius]);
 
   return (
     <View style={[styles.container, { width: size, height: size }]}>
@@ -133,7 +159,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({
               rotation={seg.allocatedStartAngle}
               origin={`${center}, ${center}`}
               fill="transparent"
-              onPress={() => onSelectPillar?.(seg.pillar)}
+              onPress={() => handlePillarPress(seg.pillar)}
             />
           );
         })}
@@ -158,14 +184,53 @@ export const DonutChart: React.FC<DonutChartProps> = ({
               rotation={seg.spentStartAngle}
               origin={`${center}, ${center}`}
               fill="transparent"
-              onPress={() => onSelectPillar?.(seg.pillar)}
+              onPress={() => handlePillarPress(seg.pillar)}
             />
           );
         })}
       </Svg>
 
+      {/* Floating Tooltip Bubble */}
+      {bubblePosition && activeSegment && (
+        <Pressable
+          onPress={() => setSelectedTooltipPillar(null)}
+          style={[
+            styles.tooltipBubble,
+            {
+              backgroundColor: theme.colors.bg.surface,
+              borderColor: activeSegment.color,
+              left: bubblePosition.x,
+              top: bubblePosition.y,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.25,
+              shadowRadius: 4,
+              elevation: 6,
+            },
+          ]}
+        >
+          <View style={[styles.tooltipDot, { backgroundColor: activeSegment.color }]} />
+          <Text
+            style={[
+              theme.typography.caption,
+              theme.typography.tabularNums,
+              {
+                color: theme.colors.text.primary,
+                fontWeight: '700',
+                fontSize: 11,
+              },
+            ]}
+          >
+            {Math.round(activeSegment.spent)}/{Math.round(activeSegment.allocated)} {currency}
+          </Text>
+        </Pressable>
+      )}
+
       {/* Center content */}
-      <View style={styles.centerOverlay} pointerEvents="box-none">
+      <Pressable
+        onPress={() => selectedTooltipPillar && setSelectedTooltipPillar(null)}
+        style={styles.centerOverlay}
+      >
         <Text
           style={[
             theme.typography.caption,
@@ -173,7 +238,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({
           ]}
           numberOfLines={1}
         >
-          {centerLabel}
+          {activeSegment ? `${activeSegment.name} (${activeSegment.ratio}%)` : centerLabel}
         </Text>
         <Text
           style={[
@@ -184,9 +249,11 @@ export const DonutChart: React.FC<DonutChartProps> = ({
           numberOfLines={1}
           adjustsFontSizeToFit
         >
-          {centerValue || '0,00 €'}
+          {activeSegment
+            ? `${Math.round(activeSegment.spent)} / ${Math.round(activeSegment.allocated)} ${currency}`
+            : (centerValue || `0,00 ${currency}`)}
         </Text>
-      </View>
+      </Pressable>
     </View>
   );
 };
@@ -207,5 +274,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
+  },
+  tooltipBubble: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    transform: [{ translateX: -40 }, { translateY: -12 }],
+    zIndex: 10,
+    gap: 4,
+  },
+  tooltipDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
 });
