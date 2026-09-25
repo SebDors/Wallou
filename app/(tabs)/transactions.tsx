@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -53,6 +53,12 @@ export default function TransactionsScreen() {
     }
     return 'all';
   });
+
+  useEffect(() => {
+    if (params.filter && ['all', 'needs', 'wants', 'savings', 'income'].includes(params.filter)) {
+      setActiveFilter(params.filter as FilterType);
+    }
+  }, [params.filter]);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [startEditing, setStartEditing] = useState(false);
 
