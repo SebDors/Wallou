@@ -488,7 +488,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   txCard: {
-    marginVertical: 4,
+    marginVertical: 0,
   },
   txRow: {
     flexDirection: 'row',

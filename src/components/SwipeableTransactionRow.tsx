@@ -71,7 +71,7 @@ export const SwipeableTransactionRow: React.FC<SwipeableTransactionRowProps> = (
   return (
     <View style={styles.container}>
       {/* Background action strips */}
-      <View style={styles.backgroundContainer}>
+      <View style={[styles.backgroundContainer, { borderRadius: theme.radii.lg }]}>
         {/* Left background: Modify (revealed when swiping right) */}
         <View
           style={[
