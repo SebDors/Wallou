@@ -44,7 +44,6 @@ export default function DashboardScreen() {
   const { openQuickEntry } = useQuickEntry();
 
   const [refreshing, setRefreshing] = useState(false);
-  const [highlightedPillar, setHighlightedPillar] = useState<PillarId | null>(null);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [showMonthlyOverview, setShowMonthlyOverview] = useState(false);
 
@@ -335,24 +334,15 @@ export default function DashboardScreen() {
           ratios={settings?.ratios || { needs: 50, wants: 30, savings: 20 }}
           centerLabel="Dépenses totales"
           centerValue={formatCurrency(summary.totalExpenses, currency)}
-          onSelectPillar={(pillar) =>
-            setHighlightedPillar((prev) => (prev === pillar ? null : pillar))
-          }
+          currency={currency}
         />
 
-        {/* 3 Pillar Legends (single line) */}
+        {/* 3 Pillar Legends (single line, non-clickable) */}
         <View style={styles.legendRow}>
-          <Pressable
-            onPress={() =>
-              setHighlightedPillar((prev) => (prev === 'needs' ? null : 'needs'))
-            }
+          <View
             style={[
               styles.legendItem,
               { backgroundColor: theme.colors.bg.surfaceSubtle },
-              highlightedPillar === 'needs' && {
-                borderColor: theme.colors.pillar.needs,
-                backgroundColor: theme.colors.pillar.needsBg,
-              },
             ]}
           >
             <View
@@ -369,19 +359,12 @@ export default function DashboardScreen() {
             >
               Besoins {summary.pillars.needs.ratio}%
             </Text>
-          </Pressable>
+          </View>
 
-          <Pressable
-            onPress={() =>
-              setHighlightedPillar((prev) => (prev === 'wants' ? null : 'wants'))
-            }
+          <View
             style={[
               styles.legendItem,
               { backgroundColor: theme.colors.bg.surfaceSubtle },
-              highlightedPillar === 'wants' && {
-                borderColor: theme.colors.pillar.wants,
-                backgroundColor: theme.colors.pillar.wantsBg,
-              },
             ]}
           >
             <View
@@ -398,19 +381,12 @@ export default function DashboardScreen() {
             >
               Envies {summary.pillars.wants.ratio}%
             </Text>
-          </Pressable>
+          </View>
 
-          <Pressable
-            onPress={() =>
-              setHighlightedPillar((prev) => (prev === 'savings' ? null : 'savings'))
-            }
+          <View
             style={[
               styles.legendItem,
               { backgroundColor: theme.colors.bg.surfaceSubtle },
-              highlightedPillar === 'savings' && {
-                borderColor: theme.colors.pillar.savings,
-                backgroundColor: theme.colors.pillar.savingsBg,
-              },
             ]}
           >
             <View
@@ -427,7 +403,7 @@ export default function DashboardScreen() {
             >
               Épargne {summary.pillars.savings.ratio}%
             </Text>
-          </Pressable>
+          </View>
         </View>
       </View>
 
