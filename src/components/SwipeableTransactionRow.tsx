@@ -68,33 +68,53 @@ export const SwipeableTransactionRow: React.FC<SwipeableTransactionRowProps> = (
     })
   ).current;
 
+  const leftOpacity = pan.interpolate({
+    inputRange: [0, 8],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+
+  const rightOpacity = pan.interpolate({
+    inputRange: [-8, 0],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
   return (
     <View style={styles.container}>
       {/* Background action strips */}
       <View style={[styles.backgroundContainer, { borderRadius: theme.radii.lg }]}>
         {/* Left background: Modify (revealed when swiping right) */}
-        <View
+        <Animated.View
           style={[
             styles.actionBackground,
             styles.leftAction,
-            { backgroundColor: theme.colors.pillar.savings, borderRadius: theme.radii.lg },
+            {
+              backgroundColor: theme.colors.pillar.savings,
+              borderRadius: theme.radii.lg,
+              opacity: leftOpacity,
+            },
           ]}
         >
           <Edit3 size={20} color="#FFFFFF" />
           <Text style={[styles.actionText, { color: '#FFFFFF' }]}>Modifier</Text>
-        </View>
+        </Animated.View>
 
         {/* Right background: Delete (revealed when swiping left) */}
-        <View
+        <Animated.View
           style={[
             styles.actionBackground,
             styles.rightAction,
-            { backgroundColor: theme.colors.status.overrun, borderRadius: theme.radii.lg },
+            {
+              backgroundColor: theme.colors.status.overrun,
+              borderRadius: theme.radii.lg,
+              opacity: rightOpacity,
+            },
           ]}
         >
           <Text style={[styles.actionText, { color: '#FFFFFF' }]}>Supprimer</Text>
           <Trash2 size={20} color="#FFFFFF" />
-        </View>
+        </Animated.View>
       </View>
 
       {/* Foreground Swipeable Item */}
@@ -117,16 +137,13 @@ const styles = StyleSheet.create({
   },
   backgroundContainer: {
     ...StyleSheet.absoluteFillObject,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     overflow: 'hidden',
   },
   actionBackground: {
+    ...StyleSheet.absoluteFillObject,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    height: '100%',
+    paddingHorizontal: 20,
     gap: 6,
   },
   leftAction: {
@@ -134,7 +151,6 @@ const styles = StyleSheet.create({
   },
   rightAction: {
     justifyContent: 'flex-end',
-    marginLeft: 'auto',
   },
   actionText: {
     fontSize: 12,
