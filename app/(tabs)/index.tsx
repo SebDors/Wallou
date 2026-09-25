@@ -340,7 +340,7 @@ export default function DashboardScreen() {
           }
         />
 
-        {/* Enhanced Legend Row with used part */}
+        {/* 3 Pillar Legends (single line) */}
         <View style={styles.legendRow}>
           <Pressable
             onPress={() =>
@@ -361,25 +361,14 @@ export default function DashboardScreen() {
                 { backgroundColor: theme.colors.pillar.needs },
               ]}
             />
-            <View>
-              <Text
-                style={[
-                  theme.typography.caption,
-                  { color: theme.colors.text.primary, fontWeight: '600' },
-                ]}
-              >
-                Besoins ({summary.pillars.needs.ratio}%)
-              </Text>
-              <Text
-                style={[
-                  theme.typography.caption,
-                  theme.typography.tabularNums,
-                  { color: theme.colors.text.secondary, fontSize: 11, marginTop: 1 },
-                ]}
-              >
-                {formatCurrency(summary.pillars.needs.spent, currency)} / {formatCurrency(summary.pillars.needs.allocated, currency)}
-              </Text>
-            </View>
+            <Text
+              style={[
+                theme.typography.caption,
+                { color: theme.colors.text.primary, fontWeight: '600' },
+              ]}
+            >
+              Besoins {summary.pillars.needs.ratio}%
+            </Text>
           </Pressable>
 
           <Pressable
@@ -401,25 +390,14 @@ export default function DashboardScreen() {
                 { backgroundColor: theme.colors.pillar.wants },
               ]}
             />
-            <View>
-              <Text
-                style={[
-                  theme.typography.caption,
-                  { color: theme.colors.text.primary, fontWeight: '600' },
-                ]}
-              >
-                Envies ({summary.pillars.wants.ratio}%)
-              </Text>
-              <Text
-                style={[
-                  theme.typography.caption,
-                  theme.typography.tabularNums,
-                  { color: theme.colors.text.secondary, fontSize: 11, marginTop: 1 },
-                ]}
-              >
-                {formatCurrency(summary.pillars.wants.spent, currency)} / {formatCurrency(summary.pillars.wants.allocated, currency)}
-              </Text>
-            </View>
+            <Text
+              style={[
+                theme.typography.caption,
+                { color: theme.colors.text.primary, fontWeight: '600' },
+              ]}
+            >
+              Envies {summary.pillars.wants.ratio}%
+            </Text>
           </Pressable>
 
           <Pressable
@@ -441,25 +419,14 @@ export default function DashboardScreen() {
                 { backgroundColor: theme.colors.pillar.savings },
               ]}
             />
-            <View>
-              <Text
-                style={[
-                  theme.typography.caption,
-                  { color: theme.colors.text.primary, fontWeight: '600' },
-                ]}
-              >
-                Épargne ({summary.pillars.savings.ratio}%)
-              </Text>
-              <Text
-                style={[
-                  theme.typography.caption,
-                  theme.typography.tabularNums,
-                  { color: theme.colors.text.secondary, fontSize: 11, marginTop: 1 },
-                ]}
-              >
-                {formatCurrency(summary.pillars.savings.spent, currency)} / {formatCurrency(summary.pillars.savings.allocated, currency)}
-              </Text>
-            </View>
+            <Text
+              style={[
+                theme.typography.caption,
+                { color: theme.colors.text.primary, fontWeight: '600' },
+              ]}
+            >
+              Épargne {summary.pillars.savings.ratio}%
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -729,7 +696,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     marginTop: 14,
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
   },
   legendItem: {
     flexDirection: 'row',
