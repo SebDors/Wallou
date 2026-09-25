@@ -27,6 +27,7 @@ import {
 import {
   clearAllStorage,
   DEFAULT_SETTINGS,
+  DEFAULT_TRANSACTIONS,
   hydrateAll,
   saveRecurring,
   saveSettings,
@@ -91,6 +92,16 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         let activeTransactions = hydrated.transactions;
         const activeRecurring = hydrated.recurring;
         const activeSettings = hydrated.settings;
+
+        // Auto-integrate default transactions (e.g. August 2026) if missing
+        const txIds = new Set(activeTransactions.map((t) => t.id));
+        const missingDefaults = DEFAULT_TRANSACTIONS.filter((t) => !txIds.has(t.id));
+        if (missingDefaults.length > 0) {
+          activeTransactions = [...activeTransactions, ...missingDefaults];
+          saveTransactions(activeTransactions).catch((err) =>
+            console.error('Failed to persist default transactions:', err)
+          );
+        }
 
         // Auto-evaluate recurring transactions for current month on startup
         const periodKey = getCurrentPeriodKey();
@@ -371,7 +382,7 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const resetAllData = useCallback(async (): Promise<void> => {
     await clearAllStorage();
-    setTransactions([]);
+    setTransactions([...DEFAULT_TRANSACTIONS]);
     setRecurring([]);
     setSettings(DEFAULT_SETTINGS);
   }, []);

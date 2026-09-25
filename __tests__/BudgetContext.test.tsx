@@ -5,6 +5,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { BudgetProvider, useBudget } from '../src/context/BudgetContext';
+import { DEFAULT_TRANSACTIONS } from '../src/services/storageService';
 
 let capturedContext: ReturnType<typeof useBudget> | null = null;
 
@@ -31,6 +32,7 @@ describe('BudgetContext', () => {
 
     expect(capturedContext).not.toBeNull();
     expect(capturedContext?.isHydrated).toBe(true);
+    expect(capturedContext?.transactions.length).toBe(DEFAULT_TRANSACTIONS.length);
 
     // 1. Add income transaction
     await act(async () => {
@@ -43,7 +45,7 @@ describe('BudgetContext', () => {
       });
     });
 
-    expect(capturedContext?.transactions.length).toBe(1);
+    expect(capturedContext?.transactions.length).toBe(DEFAULT_TRANSACTIONS.length + 1);
     expect(capturedContext?.summary.totalIncome).toBe(2000);
     expect(capturedContext?.summary.pillars.needs.allocated).toBe(1000);
     expect(capturedContext?.summary.pillars.wants.allocated).toBe(600);
@@ -64,7 +66,7 @@ describe('BudgetContext', () => {
       if (tx) expenseTxId = tx.id;
     });
 
-    expect(capturedContext?.transactions.length).toBe(2);
+    expect(capturedContext?.transactions.length).toBe(DEFAULT_TRANSACTIONS.length + 2);
     expect(capturedContext?.summary.totalExpenses).toBe(500);
     expect(capturedContext?.summary.pillars.needs.spent).toBe(500);
     expect(capturedContext?.summary.pillars.needs.remaining).toBe(500);
@@ -75,9 +77,26 @@ describe('BudgetContext', () => {
       await capturedContext?.deleteTransaction(expenseTxId);
     });
 
-    expect(capturedContext?.transactions.length).toBe(1);
+    expect(capturedContext?.transactions.length).toBe(DEFAULT_TRANSACTIONS.length + 1);
     expect(capturedContext?.summary.totalExpenses).toBe(0);
     expect(capturedContext?.summary.pillars.needs.spent).toBe(0);
+  });
+
+  it('loads default August 2026 transactions upon initialization', async () => {
+    await act(async () => {
+      create(
+        <BudgetProvider>
+          <TestConsumer />
+        </BudgetProvider>
+      );
+    });
+
+    expect(capturedContext).not.toBeNull();
+    const augTxs = capturedContext?.transactions.filter((t) => t.date.startsWith('2026-08'));
+    expect(augTxs?.length).toBe(5);
+    expect(augTxs?.map((t) => t.title)).toEqual(
+      expect.arrayContaining(['Salaire', 'Loyer', 'Courses', 'Sorties', 'Épargne'])
+    );
   });
 
   it('validates ratios when updating settings', async () => {

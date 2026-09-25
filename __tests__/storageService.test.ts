@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   clearAllStorage,
   DEFAULT_SETTINGS,
+  DEFAULT_TRANSACTIONS,
   hydrateAll,
   saveRecurring,
   saveSettings,
@@ -22,7 +23,7 @@ describe('storageService', () => {
 
   it('hydrates with default values when storage is empty', async () => {
     const data = await hydrateAll();
-    expect(data.transactions).toEqual([]);
+    expect(data.transactions).toEqual(DEFAULT_TRANSACTIONS);
     expect(data.recurring).toEqual([]);
     expect(data.settings).toEqual(DEFAULT_SETTINGS);
   });

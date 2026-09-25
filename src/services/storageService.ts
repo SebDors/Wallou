@@ -21,6 +21,63 @@ export const DEFAULT_SETTINGS: UserSettings = {
   hasCompletedOnboarding: false,
 };
 
+export const DEFAULT_TRANSACTIONS: Transaction[] = [
+  {
+    id: 'seed-tx-2026-08-01-salaire',
+    type: 'income',
+    amount: 2300,
+    category: 'Salaire',
+    title: 'Salaire',
+    date: '2026-08-01T08:00:00.000Z',
+    createdAt: '2026-08-01T08:00:00.000Z',
+    updatedAt: '2026-08-01T08:00:00.000Z',
+  },
+  {
+    id: 'seed-tx-2026-08-05-loyer',
+    type: 'expense',
+    amount: 375,
+    pillarId: 'needs',
+    category: 'Loyer',
+    title: 'Loyer',
+    date: '2026-08-05T08:00:00.000Z',
+    createdAt: '2026-08-05T08:00:00.000Z',
+    updatedAt: '2026-08-05T08:00:00.000Z',
+  },
+  {
+    id: 'seed-tx-2026-08-10-courses',
+    type: 'expense',
+    amount: 210,
+    pillarId: 'needs',
+    category: 'Courses',
+    title: 'Courses',
+    date: '2026-08-10T10:00:00.000Z',
+    createdAt: '2026-08-10T10:00:00.000Z',
+    updatedAt: '2026-08-10T10:00:00.000Z',
+  },
+  {
+    id: 'seed-tx-2026-08-18-sorties',
+    type: 'expense',
+    amount: 85,
+    pillarId: 'wants',
+    category: 'Sorties',
+    title: 'Sorties',
+    date: '2026-08-18T19:00:00.000Z',
+    createdAt: '2026-08-18T19:00:00.000Z',
+    updatedAt: '2026-08-18T19:00:00.000Z',
+  },
+  {
+    id: 'seed-tx-2026-08-25-epargne',
+    type: 'expense',
+    amount: 250,
+    pillarId: 'savings',
+    category: 'Épargne',
+    title: 'Épargne',
+    date: '2026-08-25T09:00:00.000Z',
+    createdAt: '2026-08-25T09:00:00.000Z',
+    updatedAt: '2026-08-25T09:00:00.000Z',
+  },
+];
+
 /**
  * Loads all state collections on boot via a single multiGet request.
  * Falls back safely to empty arrays and default settings if uninitialized or corrupted.
@@ -39,7 +96,7 @@ export async function hydrateAll(): Promise<{
     const pairs = await AsyncStorage.multiGet(keys);
     const map = new Map<string, string | null>(pairs);
 
-    let transactions: Transaction[] = [];
+    let transactions: Transaction[] = [...DEFAULT_TRANSACTIONS];
     const rawTx = map.get(STORAGE_KEYS.TRANSACTIONS);
     if (rawTx) {
       try {
@@ -48,7 +105,7 @@ export async function hydrateAll(): Promise<{
           transactions = parsed;
         }
       } catch (err) {
-        console.warn('Storage corrupted for transactions, resetting to []', err);
+        console.warn('Storage corrupted for transactions, resetting to defaults', err);
       }
     }
 
@@ -88,7 +145,7 @@ export async function hydrateAll(): Promise<{
   } catch (error) {
     console.error('Failed to hydrate storage:', error);
     return {
-      transactions: [],
+      transactions: [...DEFAULT_TRANSACTIONS],
       recurring: [],
       settings: { ...DEFAULT_SETTINGS },
     };
