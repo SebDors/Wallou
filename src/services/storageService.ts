@@ -19,6 +19,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
   },
   theme: 'system',
   hasCompletedOnboarding: false,
+  rolloverMode: 'reset',
+  startingLiquidity: 0,
 };
 
 export const DEFAULT_TRANSACTIONS: Transaction[] = [

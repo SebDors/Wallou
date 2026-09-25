@@ -356,6 +356,43 @@ export default function DashboardScreen() {
             >
               (avec épargne : {formatCurrency(summary.netBalance, currency)})
             </Text>
+
+            {Boolean(summary.startingBalance && summary.startingBalance !== 0) && (
+              <View
+                style={[
+                  styles.startingBalanceBadge,
+                  {
+                    backgroundColor: theme.colors.bg.surfaceSubtle,
+                    borderRadius: theme.radii.sm,
+                    borderColor: theme.colors.border.subtle,
+                    borderWidth: 1,
+                    marginTop: 6,
+                    paddingHorizontal: 8,
+                    paddingVertical: 3,
+                    alignSelf: 'flex-start',
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    theme.typography.caption,
+                    theme.typography.tabularNums,
+                    {
+                      color:
+                        summary.startingBalance > 0
+                          ? theme.colors.status.income
+                          : theme.colors.status.overrun,
+                      fontWeight: '600',
+                      fontSize: 11,
+                    },
+                  ]}
+                >
+                  {settings?.rolloverMode === 'previous_balance'
+                    ? `Report mois précédent : ${summary.startingBalance >= 0 ? '+' : ''}${formatCurrency(summary.startingBalance, currency)}`
+                    : `Liquidité de départ : +${formatCurrency(summary.startingBalance, currency)}`}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Right: Budget journalier disponible */}
@@ -693,6 +730,7 @@ export default function DashboardScreen() {
               totalIncome={summary.totalIncome}
               periodKey={currentPeriodKey}
               currency={currency}
+              startingBalance={summary.startingBalance}
               width={carouselWidth || 340}
               height={220}
               onScrubbingChange={setIsScrubbingChart}
@@ -1158,5 +1196,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 14,
     justifyContent: 'center',
+  },
+  startingBalanceBadge: {
+    marginTop: 4,
   },
 });

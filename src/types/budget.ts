@@ -6,6 +6,7 @@ export type PillarId = 'needs' | 'wants' | 'savings';
 export type TransactionType = 'income' | 'expense' | 'refund';
 export type RecurrenceFrequency = 'monthly';
 export type PillarStatus = 'safe' | 'warning' | 'overrun';
+export type RolloverMode = 'reset' | 'previous_balance' | 'fixed_liquidity';
 
 export interface BudgetRatios {
   needs: number;   // default 50
@@ -64,6 +65,8 @@ export interface UserSettings {
   theme: 'light' | 'dark' | 'system';
   hasCompletedOnboarding: boolean;
   customCategories?: string[];   // user-defined categories
+  rolloverMode?: RolloverMode;   // default 'reset'
+  startingLiquidity?: number;    // default 0
 }
 
 // ==========================================
@@ -85,10 +88,11 @@ export interface PillarSummary {
 
 export interface BudgetPeriodSummary {
   periodKey: string;             // "YYYY-MM"
+  startingBalance: number;       // initial balance of the month calculated according to mode
   totalIncome: number;           // sum of all incomes in period
   totalExpenses: number;         // sum of all expenses in period
-  netBalance: number;            // totalIncome - totalExpenses
-  resteAVivre: number;           // (allocatedNeeds - spentNeeds) + (allocatedWants - spentWants)
+  netBalance: number;            // startingBalance + totalIncome - totalExpenses
+  resteAVivre: number;           // startingBalance + (allocatedNeeds - spentNeeds) + (allocatedWants - spentWants)
   pillars: Record<PillarId, PillarSummary>;
   transactions: Transaction[];   // transactions belonging to this period
 }

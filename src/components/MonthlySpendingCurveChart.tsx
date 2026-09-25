@@ -23,6 +23,7 @@ export interface MonthlySpendingCurveChartProps {
   currency?: string;
   width?: number;
   height?: number;
+  startingBalance?: number;
   onScrubbingChange?: (isScrubbing: boolean) => void;
 }
 
@@ -33,6 +34,7 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
   currency = '€',
   width = 330,
   height = 220,
+  startingBalance = 0,
   onScrubbingChange,
 }) => {
   const { theme } = useTheme();
@@ -54,7 +56,8 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
   const lastHapticDay = useRef<number | null>(null);
 
   // Compute daily transactions and running net balance:
-  // Starts with income at beginning of month, decreases with expenses, increases with new incomes
+  // Starts with initial startingBalance (rollover or fixed liquidity) + income at beginning of month,
+  // decreases with expenses, increases with new incomes/refunds
   const { balanceByDay, dayTransactionsMap, latestBalance } = useMemo(() => {
     const txByDay: Record<number, Transaction[]> = {};
     for (let d = 1; d <= totalDays; d++) {
@@ -70,7 +73,7 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
     }
 
     const balances: Record<number, number> = {};
-    let running = 0;
+    let running = Number(startingBalance || 0);
 
     for (let d = 1; d <= totalDays; d++) {
       const dayTxs = txByDay[d];
@@ -95,7 +98,7 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
       dayTransactionsMap: txByDay,
       latestBalance: balances[daysLimit] ?? 0,
     };
-  }, [transactions, periodKey, totalDays, daysLimit]);
+  }, [transactions, periodKey, totalDays, daysLimit, startingBalance]);
 
   // Chart layout geometry
   const paddingLeft = 14;
@@ -111,7 +114,7 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
     .map(([, val]) => val);
 
   const minVal = Math.min(0, ...activeBalances);
-  const maxVal = Math.max(totalIncome, 100, ...activeBalances);
+  const maxVal = Math.max(totalIncome, 100, Number(startingBalance || 0), ...activeBalances);
   const range = maxVal - minVal || 1;
   const maxY = maxVal + range * 0.08;
   const minY = Math.min(0, minVal - range * 0.05);

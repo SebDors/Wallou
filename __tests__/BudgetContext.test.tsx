@@ -2,6 +2,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { BudgetProvider, useBudget } from '../src/context/BudgetContext';
@@ -16,9 +17,10 @@ const TestConsumer: React.FC = () => {
 };
 
 describe('BudgetContext', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     capturedContext = null;
     jest.clearAllMocks();
+    await AsyncStorage.clear();
   });
 
   it('provides budget context and handles transaction lifecycle', async () => {
@@ -161,5 +163,47 @@ describe('BudgetContext', () => {
     });
 
     expect(capturedContext?.categories).toEqual(['Loisirs']);
+  });
+
+  it('calculates startingBalance dynamically based on rolloverMode', async () => {
+    await act(async () => {
+      create(
+        <BudgetProvider>
+          <TestConsumer />
+        </BudgetProvider>
+      );
+    });
+
+    // Default rolloverMode is 'reset', startingBalance is 0
+    expect(capturedContext?.summary.startingBalance).toBe(0);
+
+    // Test fixed_liquidity
+    await act(async () => {
+      await capturedContext?.updateSettings({
+        rolloverMode: 'fixed_liquidity',
+        startingLiquidity: 450,
+      });
+    });
+
+    expect(capturedContext?.settings.rolloverMode).toBe('fixed_liquidity');
+    expect(capturedContext?.settings.startingLiquidity).toBe(450);
+    expect(capturedContext?.summary.startingBalance).toBe(450);
+    expect(capturedContext?.summary.netBalance).toBe(450);
+    expect(capturedContext?.summary.resteAVivre).toBe(450);
+
+    // Test previous_balance: add transactions to previous month (2026-08)
+    await act(async () => {
+      capturedContext?.setPeriodKey('2026-09');
+      await capturedContext?.updateSettings({
+        rolloverMode: 'previous_balance',
+      });
+    });
+
+    // August transactions from DEFAULT_TRANSACTIONS:
+    // Salaire: 2300
+    // Expenses: Loyer (375), Courses (210), Sorties (85), Épargne (250) = 920
+    // Previous balance for 2026-08 = 2300 - 920 = 1380
+    expect(capturedContext?.summary.startingBalance).toBe(1380);
+    expect(capturedContext?.summary.netBalance).toBe(1380);
   });
 });

@@ -72,6 +72,17 @@ export function getCurrentPeriodKey(): string {
   return `${year}-${month}`;
 }
 
+export function getPreviousPeriodKey(periodKey: string): string {
+  const [yearStr, monthStr] = periodKey.split('-');
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+  if (isNaN(year) || isNaN(month)) return '';
+  const prevDate = new Date(year, month - 2, 1);
+  const prevYear = prevDate.getFullYear();
+  const prevMonth = String(prevDate.getMonth() + 1).padStart(2, '0');
+  return `${prevYear}-${prevMonth}`;
+}
+
 export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [recurring, setRecurring] = useState<RecurringItem[]>([]);
@@ -138,10 +149,38 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, []);
 
-  // 2. Real-time synchronous calculation of budget summary (0ms latency)
+  // 2. Real-time synchronous calculation of budget summary with rollover starting balance
   const summary = useMemo(() => {
-    return calculateBudgetPeriodSummary(transactions, settings.ratios, currentPeriodKey);
-  }, [transactions, settings.ratios, currentPeriodKey]);
+    let startingBalance = 0;
+
+    if (settings.rolloverMode === 'fixed_liquidity') {
+      startingBalance = settings.startingLiquidity || 0;
+    } else if (settings.rolloverMode === 'previous_balance') {
+      const prevKey = getPreviousPeriodKey(currentPeriodKey);
+      if (prevKey) {
+        const prevSummary = calculateBudgetPeriodSummary(
+          transactions,
+          settings.ratios,
+          prevKey,
+          0
+        );
+        startingBalance = prevSummary.netBalance;
+      }
+    }
+
+    return calculateBudgetPeriodSummary(
+      transactions,
+      settings.ratios,
+      currentPeriodKey,
+      startingBalance
+    );
+  }, [
+    transactions,
+    settings.ratios,
+    settings.rolloverMode,
+    settings.startingLiquidity,
+    currentPeriodKey,
+  ]);
 
   // 3. Transactions Mutations
   const addTransaction = useCallback(

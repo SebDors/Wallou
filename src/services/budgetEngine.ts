@@ -77,7 +77,8 @@ export function calculateAllocations(
 export function calculateBudgetPeriodSummary(
   transactions: Transaction[],
   ratios: BudgetRatios,
-  periodKey: string
+  periodKey: string,
+  startingBalance: number = 0
 ): BudgetPeriodSummary {
   const periodTransactions = transactions.filter(
     (t) => t.date && t.date.slice(0, 7) === periodKey
@@ -189,11 +190,13 @@ export function calculateBudgetPeriodSummary(
     };
   }
 
-  const netBalance = round2(totalIncome - (rawExpenses - rawRefunds));
-  const resteAVivre = round2(pillars.needs.remaining + pillars.wants.remaining);
+  const safeStartingBalance = isNaN(startingBalance) ? 0 : round2(startingBalance);
+  const netBalance = round2(safeStartingBalance + totalIncome - (rawExpenses - rawRefunds));
+  const resteAVivre = round2(safeStartingBalance + pillars.needs.remaining + pillars.wants.remaining);
 
   return {
     periodKey,
+    startingBalance: safeStartingBalance,
     totalIncome,
     totalExpenses,
     netBalance,

@@ -64,6 +64,8 @@ describe('storageService', () => {
       ratios: { needs: 60, wants: 20, savings: 20 },
       theme: 'dark',
       hasCompletedOnboarding: true,
+      rolloverMode: 'reset',
+      startingLiquidity: 0,
     };
 
     await saveTransactions(transactions);

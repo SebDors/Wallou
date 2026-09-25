@@ -369,6 +369,63 @@ describe('budgetEngine', () => {
       expect(summary.pillars.wants.remaining).toBe(600);
       expect(summary.resteAVivre).toBe(1700); // 1100 + 600
     });
+
+    it('incorporates positive startingBalance into netBalance and resteAVivre', () => {
+      const transactions: Transaction[] = [
+        {
+          id: '1',
+          type: 'income',
+          amount: 2000,
+          category: 'Salaire',
+          title: 'Salaire',
+          date: '2026-09-01T09:00:00.000Z',
+          createdAt: '2026-09-01T09:00:00.000Z',
+          updatedAt: '2026-09-01T09:00:00.000Z',
+        },
+        {
+          id: '2',
+          type: 'expense',
+          amount: 500,
+          pillarId: 'needs',
+          category: 'Loyer',
+          title: 'Loyer',
+          date: '2026-09-05T09:00:00.000Z',
+          createdAt: '2026-09-05T09:00:00.000Z',
+          updatedAt: '2026-09-05T09:00:00.000Z',
+        },
+      ];
+
+      const summary = calculateBudgetPeriodSummary(transactions, ratios, periodKey, 300);
+      expect(summary.startingBalance).toBe(300);
+      // netBalance = 300 + 2000 - 500 = 1800
+      expect(summary.netBalance).toBe(1800);
+      // needs: 2000 * 50% = 1000 - 500 = 500 remaining
+      // wants: 2000 * 30% = 600 remaining
+      // resteAVivre = 300 + 500 + 600 = 1400
+      expect(summary.resteAVivre).toBe(1400);
+    });
+
+    it('incorporates negative startingBalance into netBalance and resteAVivre', () => {
+      const transactions: Transaction[] = [
+        {
+          id: '1',
+          type: 'income',
+          amount: 2000,
+          category: 'Salaire',
+          title: 'Salaire',
+          date: '2026-09-01T09:00:00.000Z',
+          createdAt: '2026-09-01T09:00:00.000Z',
+          updatedAt: '2026-09-01T09:00:00.000Z',
+        },
+      ];
+
+      const summary = calculateBudgetPeriodSummary(transactions, ratios, periodKey, -150);
+      expect(summary.startingBalance).toBe(-150);
+      // netBalance = -150 + 2000 = 1850
+      expect(summary.netBalance).toBe(1850);
+      // resteAVivre = -150 + 1000 + 600 = 1450
+      expect(summary.resteAVivre).toBe(1450);
+    });
   });
 
   describe('formatCurrency', () => {

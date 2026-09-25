@@ -26,6 +26,8 @@ import {
   Tag,
   FolderPlus,
   Trash2,
+  Calendar,
+  Repeat,
 } from 'lucide-react-native';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -38,7 +40,7 @@ import { Card } from '../../src/components/Card';
 import { validateRatios } from '../../src/services/budgetEngine';
 import { validateAndSanitizeBackup } from '../../src/services/exportImportService';
 import { checkForUpdate, openDownloadPage } from '../../src/services/updateService';
-import { BudgetRatios } from '../../src/types/budget';
+import { BudgetRatios, RolloverMode } from '../../src/types/budget';
 
 const CURRENCIES = [
   { label: 'Euro (€)', symbol: '€' },
@@ -83,14 +85,54 @@ export default function SettingsScreen() {
   const [rawJsonInput, setRawJsonInput] = useState('');
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
 
+  // Rollover Mode & Starting Liquidity State
+  const [rolloverMode, setRolloverMode] = useState<RolloverMode>(
+    settings?.rolloverMode || 'reset'
+  );
+  const [startingLiquidityInput, setStartingLiquidityInput] = useState<string>(
+    String(settings?.startingLiquidity ?? 0)
+  );
+
   // Sync settings when loaded
   useEffect(() => {
-    if (settings?.ratios) {
-      setNeedsRatio(String(settings.ratios.needs));
-      setWantsRatio(String(settings.ratios.wants));
-      setSavingsRatio(String(settings.ratios.savings));
+    if (settings) {
+      if (settings.ratios) {
+        setNeedsRatio(String(settings.ratios.needs));
+        setWantsRatio(String(settings.ratios.wants));
+        setSavingsRatio(String(settings.ratios.savings));
+      }
+      if (settings.rolloverMode) {
+        setRolloverMode(settings.rolloverMode);
+      }
+      if (settings.startingLiquidity !== undefined) {
+        setStartingLiquidityInput(String(settings.startingLiquidity));
+      }
     }
-  }, [settings?.ratios]);
+  }, [settings?.ratios, settings?.rolloverMode, settings?.startingLiquidity]);
+
+  const handleSelectRolloverMode = async (mode: RolloverMode) => {
+    setRolloverMode(mode);
+    try {
+      Haptics.selectionAsync();
+    } catch {}
+    await updateSettings({ rolloverMode: mode });
+  };
+
+  const handleSaveStartingLiquidity = async () => {
+    const parsed = parseFloat(startingLiquidityInput.replace(',', '.'));
+    if (isNaN(parsed) || parsed < 0) {
+      showError('Montant invalide', 'Veuillez saisir un montant de liquidité valide.');
+      return;
+    }
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {}
+    await updateSettings({ startingLiquidity: Number(parsed.toFixed(2)) });
+    showSuccess(
+      'Liquidité enregistrée',
+      `La liquidité mensuelle initiale est fixée à ${parsed} ${settings?.currency || '€'}.`
+    );
+  };
 
   // Real-time ratio validation
   const currentTotalRatio =
@@ -618,6 +660,158 @@ export default function SettingsScreen() {
         </Pressable>
       </Card>
 
+      {/* 4. Changement de mois & Liquidité */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.text.secondary, marginTop: 16 }]}>
+        Changement de mois & Liquidité
+      </Text>
+      <Card style={styles.cardSection}>
+        <View style={styles.rolloverOptionsList}>
+          {/* Option 1: Reset */}
+          <Pressable
+            onPress={() => handleSelectRolloverMode('reset')}
+            style={[
+              styles.rolloverOptionItem,
+              {
+                borderColor: rolloverMode === 'reset' ? theme.colors.pillar.savings : theme.colors.border.subtle,
+                backgroundColor: rolloverMode === 'reset' ? theme.colors.bg.surfaceSubtle : theme.colors.bg.surface,
+                borderRadius: theme.radii.md,
+              },
+            ]}
+          >
+            <View style={styles.rolloverRadioRow}>
+              <View
+                style={[
+                  styles.radioOuter,
+                  { borderColor: rolloverMode === 'reset' ? theme.colors.pillar.savings : theme.colors.border.subtle },
+                ]}
+              >
+                {rolloverMode === 'reset' && (
+                  <View style={[styles.radioInner, { backgroundColor: theme.colors.pillar.savings }]} />
+                )}
+              </View>
+              <View style={styles.rolloverTextCol}>
+                <Text style={[theme.typography.body, { color: theme.colors.text.primary, fontWeight: '700' }]}>
+                  Repartir à zéro (Reset)
+                </Text>
+                <Text style={[theme.typography.caption, { color: theme.colors.text.secondary, marginTop: 2 }]}>
+                  Chaque mois est indépendant (recommandé 50/30/20)
+                </Text>
+              </View>
+            </View>
+          </Pressable>
+
+          {/* Option 2: Previous balance */}
+          <Pressable
+            onPress={() => handleSelectRolloverMode('previous_balance')}
+            style={[
+              styles.rolloverOptionItem,
+              {
+                borderColor: rolloverMode === 'previous_balance' ? theme.colors.pillar.savings : theme.colors.border.subtle,
+                backgroundColor: rolloverMode === 'previous_balance' ? theme.colors.bg.surfaceSubtle : theme.colors.bg.surface,
+                borderRadius: theme.radii.md,
+              },
+            ]}
+          >
+            <View style={styles.rolloverRadioRow}>
+              <View
+                style={[
+                  styles.radioOuter,
+                  { borderColor: rolloverMode === 'previous_balance' ? theme.colors.pillar.savings : theme.colors.border.subtle },
+                ]}
+              >
+                {rolloverMode === 'previous_balance' && (
+                  <View style={[styles.radioInner, { backgroundColor: theme.colors.pillar.savings }]} />
+                )}
+              </View>
+              <View style={styles.rolloverTextCol}>
+                <Text style={[theme.typography.body, { color: theme.colors.text.primary, fontWeight: '700' }]}>
+                  Reporter le solde précédent
+                </Text>
+                <Text style={[theme.typography.caption, { color: theme.colors.text.secondary, marginTop: 2 }]}>
+                  Le solde restant du mois N-1 est automatiquement reporté au 1er jour
+                </Text>
+              </View>
+            </View>
+          </Pressable>
+
+          {/* Option 3: Fixed liquidity */}
+          <Pressable
+            onPress={() => handleSelectRolloverMode('fixed_liquidity')}
+            style={[
+              styles.rolloverOptionItem,
+              {
+                borderColor: rolloverMode === 'fixed_liquidity' ? theme.colors.pillar.savings : theme.colors.border.subtle,
+                backgroundColor: rolloverMode === 'fixed_liquidity' ? theme.colors.bg.surfaceSubtle : theme.colors.bg.surface,
+                borderRadius: theme.radii.md,
+              },
+            ]}
+          >
+            <View style={styles.rolloverRadioRow}>
+              <View
+                style={[
+                  styles.radioOuter,
+                  { borderColor: rolloverMode === 'fixed_liquidity' ? theme.colors.pillar.savings : theme.colors.border.subtle },
+                ]}
+              >
+                {rolloverMode === 'fixed_liquidity' && (
+                  <View style={[styles.radioInner, { backgroundColor: theme.colors.pillar.savings }]} />
+                )}
+              </View>
+              <View style={styles.rolloverTextCol}>
+                <Text style={[theme.typography.body, { color: theme.colors.text.primary, fontWeight: '700' }]}>
+                  Liquidité fixe de départ
+                </Text>
+                <Text style={[theme.typography.caption, { color: theme.colors.text.secondary, marginTop: 2 }]}>
+                  Démarrer chaque mois avec une somme prédéfinie
+                </Text>
+              </View>
+            </View>
+          </Pressable>
+        </View>
+
+        {/* Starting liquidity input when fixed_liquidity is active */}
+        {rolloverMode === 'fixed_liquidity' && (
+          <View style={[styles.startingLiquidityBox, { borderTopColor: theme.colors.border.subtle }]}>
+            <Text style={[theme.typography.caption, { color: theme.colors.text.secondary, marginBottom: 6 }]}>
+              Montant de départ mensuel ({settings?.currency || '€'})
+            </Text>
+            <View style={styles.startingLiquidityInputRow}>
+              <TextInput
+                value={startingLiquidityInput}
+                onChangeText={setStartingLiquidityInput}
+                keyboardType="numeric"
+                placeholder="0.00"
+                placeholderTextColor={theme.colors.text.muted}
+                style={[
+                  styles.startingLiquidityInput,
+                  {
+                    backgroundColor: theme.colors.bg.surfaceSubtle,
+                    borderColor: theme.colors.border.subtle,
+                    color: theme.colors.text.primary,
+                    borderRadius: theme.radii.md,
+                  },
+                ]}
+              />
+              <Pressable
+                onPress={handleSaveStartingLiquidity}
+                style={({ pressed }) => [
+                  styles.saveLiquidityBtn,
+                  {
+                    backgroundColor: theme.colors.pillar.savings,
+                    borderRadius: theme.radii.md,
+                    opacity: pressed ? 0.8 : 1,
+                  },
+                ]}
+              >
+                <Text style={[theme.typography.body, { color: '#FFFFFF', fontWeight: '700' }]}>
+                  Valider
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+      </Card>
+
       {/* 4. Gestion des Catégories */}
       <Text style={[styles.sectionTitle, { color: theme.colors.text.secondary, marginTop: 16 }]}>
         Catégories d'opérations
@@ -1115,5 +1309,56 @@ const styles = StyleSheet.create({
   chipDeleteBtn: {
     marginLeft: 8,
     padding: 2,
+  },
+  rolloverOptionsList: {
+    gap: 10,
+  },
+  rolloverOptionItem: {
+    padding: 12,
+    borderWidth: 1.5,
+  },
+  rolloverRadioRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  radioOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  rolloverTextCol: {
+    flex: 1,
+  },
+  startingLiquidityBox: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  startingLiquidityInputRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+  startingLiquidityInput: {
+    flex: 1,
+    height: 44,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    fontSize: 15,
+  },
+  saveLiquidityBtn: {
+    paddingHorizontal: 18,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
