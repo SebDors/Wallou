@@ -32,10 +32,12 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
   startEditing = false,
 }) => {
   const { theme } = useTheme();
-  const { updateTransaction, deleteTransaction, settings } = useBudget();
+  const { updateTransaction, deleteTransaction, addTransaction, settings } = useBudget();
   const { showConfirm, showError } = useDialog();
 
   const [isEditing, setIsEditing] = useState(startEditing);
+  const [isRefunding, setIsRefunding] = useState(false);
+  const [refundAmount, setRefundAmount] = useState('');
   const [editTitle, setEditTitle] = useState('');
   const [editAmount, setEditAmount] = useState('');
   const [editPillar, setEditPillar] = useState<PillarId>('needs');
@@ -46,6 +48,9 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
       setEditAmount(String(transaction.amount));
       setEditPillar(transaction.pillarId || 'needs');
       setIsEditing(startEditing);
+      setIsRefunding(false);
+      const remainingRefundable = Math.max(0, transaction.amount - (transaction.refundedAmount || 0));
+      setRefundAmount(remainingRefundable > 0 ? String(remainingRefundable) : '');
     }
   }, [transaction, startEditing, visible]);
 
@@ -71,6 +76,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
   };
 
   const getPillarIcon = () => {
+    if (isRefunding) return <RotateCcw size={20} color={theme.colors.pillar.savings} />;
     if (isIncome) return <ArrowUpCircle size={20} color={theme.colors.status.income} />;
     if (isRefund) return <RotateCcw size={20} color={theme.colors.pillar.savings} />;
     switch (transaction.pillarId) {
@@ -118,6 +124,42 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
     onClose();
   };
 
+  const handleConfirmRefund = async () => {
+    if (!transaction) return;
+    const maxRefundable = Math.max(0, transaction.amount - (transaction.refundedAmount || 0));
+    const parsed = parseFloat(refundAmount.replace(',', '.'));
+
+    if (isNaN(parsed) || parsed <= 0) {
+      showError('Montant invalide', 'Veuillez saisir un montant positif.');
+      return;
+    }
+
+    if (parsed > maxRefundable) {
+      showError(
+        'Montant trop élevé',
+        `Le montant maximum remboursable pour cette opération est de ${formatCurrency(maxRefundable, currency)}.`
+      );
+      return;
+    }
+
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {}
+
+    await addTransaction({
+      type: 'refund',
+      amount: parsed,
+      pillarId: transaction.pillarId,
+      category: 'Remboursement',
+      title: `Remboursement ${transaction.title}`,
+      date: new Date().toISOString(),
+      targetExpenseIds: [transaction.id],
+    });
+
+    setIsRefunding(false);
+    onClose();
+  };
+
   return (
     <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
       <TouchableWithoutFeedback onPress={onClose}>
@@ -147,7 +189,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                     {getPillarIcon()}
                   </View>
                   <Text style={[theme.typography.title2, { color: theme.colors.text.primary, marginLeft: 10 }]}>
-                    {isEditing ? "Modifier l'opération" : "Détail de l'opération"}
+                    {isRefunding ? "Rembourser l'opération" : isEditing ? "Modifier l'opération" : "Détail de l'opération"}
                   </Text>
                 </View>
 
@@ -156,7 +198,113 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                 </Pressable>
               </View>
 
-              {!isEditing ? (
+              {isRefunding ? (
+                /* Refund Mode */
+                <View style={styles.content}>
+                  <View
+                    style={[
+                      styles.refundHeaderBox,
+                      {
+                        backgroundColor: theme.colors.pillar.savingsBg,
+                        borderRadius: theme.radii.md,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        theme.typography.caption,
+                        { color: theme.colors.pillar.savings, fontWeight: '600' },
+                      ]}
+                    >
+                      Montant restant remboursable
+                    </Text>
+                    <Text
+                      style={[
+                        theme.typography.title1,
+                        theme.typography.tabularNums,
+                        { color: theme.colors.pillar.savings, fontWeight: '700', marginTop: 2 },
+                      ]}
+                    >
+                      {formatCurrency(
+                        Math.max(0, transaction.amount - (transaction.refundedAmount || 0)),
+                        currency
+                      )}
+                    </Text>
+                  </View>
+
+                  <Text
+                    style={[
+                      theme.typography.caption,
+                      { color: theme.colors.text.secondary, marginTop: 8, marginBottom: 4 },
+                    ]}
+                  >
+                    Montant à rembourser ({currency})
+                  </Text>
+                  <TextInput
+                    value={refundAmount}
+                    onChangeText={setRefundAmount}
+                    keyboardType="numeric"
+                    autoFocus
+                    placeholder="0.00"
+                    placeholderTextColor={theme.colors.text.muted}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.colors.bg.surfaceSubtle,
+                        borderColor: theme.colors.border.subtle,
+                        color: theme.colors.text.primary,
+                        borderRadius: theme.radii.md,
+                      },
+                    ]}
+                  />
+
+                  <Pressable
+                    onPress={() => {
+                      const maxRef = Math.max(0, transaction.amount - (transaction.refundedAmount || 0));
+                      setRefundAmount(String(maxRef));
+                    }}
+                    style={[
+                      styles.quickMaxBtn,
+                      {
+                        borderColor: theme.colors.border.subtle,
+                        borderRadius: theme.radii.full,
+                        backgroundColor: theme.colors.bg.surfaceSubtle,
+                      },
+                    ]}
+                  >
+                    <Text style={[theme.typography.caption, { color: theme.colors.pillar.savings, fontWeight: '600' }]}>
+                      Rembourser la totalité ({formatCurrency(Math.max(0, transaction.amount - (transaction.refundedAmount || 0)), currency)})
+                    </Text>
+                  </Pressable>
+
+                  <View style={[styles.actionsRow, { marginTop: 16 }]}>
+                    <Pressable
+                      onPress={() => setIsRefunding(false)}
+                      style={[
+                        styles.actionButton,
+                        { backgroundColor: theme.colors.bg.surfaceSubtle, borderRadius: theme.radii.md },
+                      ]}
+                    >
+                      <Text style={[theme.typography.body, { color: theme.colors.text.secondary }]}>
+                        Annuler
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={handleConfirmRefund}
+                      style={[
+                        styles.actionButton,
+                        { backgroundColor: theme.colors.pillar.savings, borderRadius: theme.radii.md },
+                      ]}
+                    >
+                      <RotateCcw size={16} color="#FFFFFF" />
+                      <Text style={[theme.typography.body, { color: '#FFF', fontWeight: '700', marginLeft: 6 }]}>
+                        Valider
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : !isEditing ? (
                 /* View Mode */
                 <View style={styles.content}>
                   <View style={styles.detailRow}>
@@ -245,6 +393,29 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                         Modifier
                       </Text>
                     </Pressable>
+
+                    {transaction.type === 'expense' && (
+                      <Pressable
+                        onPress={() => {
+                          const maxRef = Math.max(0, transaction.amount - (transaction.refundedAmount || 0));
+                          if (maxRef <= 0) {
+                            showError('Opération déjà soldée', 'Cette dépense a déjà été intégralement remboursée.');
+                            return;
+                          }
+                          setRefundAmount(String(maxRef));
+                          setIsRefunding(true);
+                        }}
+                        style={[
+                          styles.actionButton,
+                          { backgroundColor: theme.colors.pillar.savingsBg, borderRadius: theme.radii.md },
+                        ]}
+                      >
+                        <RotateCcw size={16} color={theme.colors.pillar.savings} />
+                        <Text style={[theme.typography.body, { color: theme.colors.pillar.savings, fontWeight: '600', marginLeft: 6 }]}>
+                          Rembourser
+                        </Text>
+                      </Pressable>
+                    )}
 
                     <Pressable
                       onPress={handleDelete}
@@ -462,5 +633,17 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingVertical: 10,
+  },
+  refundHeaderBox: {
+    padding: 14,
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  quickMaxBtn: {
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    marginTop: 8,
   },
 });

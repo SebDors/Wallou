@@ -352,6 +352,33 @@ export default function TransactionsScreen() {
                     >
                       {item.title}
                     </Text>
+                    {item.type === 'expense' && Boolean(item.refundedAmount && item.refundedAmount > 0) && (
+                      <View
+                        style={[
+                          styles.refundBadge,
+                          {
+                            backgroundColor: theme.colors.pillar.savingsBg,
+                            borderColor: theme.colors.pillar.savings,
+                            borderRadius: theme.radii.sm,
+                          },
+                        ]}
+                      >
+                        <RotateCcw size={10} color={theme.colors.pillar.savings} style={{ marginRight: 4 }} />
+                        <Text
+                          style={[
+                            theme.typography.caption,
+                            theme.typography.tabularNums,
+                            {
+                              color: theme.colors.pillar.savings,
+                              fontWeight: '600',
+                              fontSize: 11,
+                            },
+                          ]}
+                        >
+                          Remboursé : {formatCurrency(item.refundedAmount || 0, currency)} (net : {formatCurrency(Math.max(0, item.amount - (item.refundedAmount || 0)), currency)})
+                        </Text>
+                      </View>
+                    )}
                     <Text
                       style={[
                         theme.typography.caption,
@@ -360,17 +387,6 @@ export default function TransactionsScreen() {
                     >
                       {isRefund ? `Remboursement • ${item.category}` : item.category}
                     </Text>
-                    {hasRefund && (
-                      <Text
-                        style={[
-                          theme.typography.caption,
-                          { color: theme.colors.pillar.savings, marginTop: 2, fontWeight: '600' },
-                        ]}
-                      >
-                        Remboursé : {formatCurrency(item.refundedAmount || 0, currency)}
-                        {(item.refundedAmount || 0) >= item.amount ? ' (Intégral)' : ''}
-                      </Text>
-                    )}
                   </View>
 
                   <Text
@@ -511,6 +527,16 @@ const styles = StyleSheet.create({
   },
   txInfo: {
     flex: 1,
+  },
+  refundBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderWidth: 1,
+    marginTop: 3,
+    marginBottom: 2,
   },
   emptyContainer: {
     alignItems: 'center',
