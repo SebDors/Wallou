@@ -1,9 +1,20 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable, GestureResponderEvent } from 'react-native';
+import React, { useState, useMemo, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  GestureResponderEvent,
+} from 'react-native';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import * as Haptics from 'expo-haptics';
 import { Transaction } from '../types/budget';
 import { useTheme } from '../context/ThemeContext';
 import { formatCurrency } from '../services/budgetEngine';
+
+const MONTH_NAMES_FR = [
+  'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+  'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
+];
 
 export interface MonthlySpendingCurveChartProps {
   transactions: Transaction[];
@@ -12,6 +23,7 @@ export interface MonthlySpendingCurveChartProps {
   currency?: string;
   width?: number;
   height?: number;
+  onScrubbingChange?: (isScrubbing: boolean) => void;
 }
 
 export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps> = ({
@@ -20,11 +32,12 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
   periodKey,
   currency = '€',
   width = 330,
-  height = 200,
+  height = 220,
+  onScrubbingChange,
 }) => {
   const { theme } = useTheme();
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
+  // Parsing period
   const [yearStr, monthStr] = periodKey.split('-');
   const year = parseInt(yearStr, 10) || new Date().getFullYear();
   const month = parseInt(monthStr, 10) || new Date().getMonth() + 1;
@@ -35,61 +48,94 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
   const currentDay = isCurrentMonth ? Math.min(now.getDate(), totalDays) : totalDays;
   const daysLimit = isCurrentMonth ? currentDay : totalDays;
 
-  // Compute daily cumulative spending
-  const { cumulativeByDay, totalSpent } = useMemo(() => {
-    const dailyNet: Record<number, number> = {};
+  // Scrubbing & selection state
+  const [scrubbingDay, setScrubbingDay] = useState<number | null>(null);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const lastHapticDay = useRef<number | null>(null);
+
+  // Compute daily transactions and running net balance:
+  // Starts with income at beginning of month, decreases with expenses, increases with new incomes
+  const { balanceByDay, dayTransactionsMap, latestBalance } = useMemo(() => {
+    const txByDay: Record<number, Transaction[]> = {};
+    for (let d = 1; d <= totalDays; d++) {
+      txByDay[d] = [];
+    }
+
     for (const t of transactions) {
       if (!t.date || t.date.slice(0, 7) !== periodKey) continue;
       const day = new Date(t.date).getDate();
-      if (t.type === 'expense') {
-        dailyNet[day] = (dailyNet[day] || 0) + (t.amount || 0);
-      } else if (t.type === 'refund') {
-        dailyNet[day] = (dailyNet[day] || 0) - (t.amount || 0);
+      if (day >= 1 && day <= totalDays) {
+        txByDay[day].push(t);
       }
     }
 
-    const cumulative: Record<number, number> = {};
-    let rolling = 0;
+    const balances: Record<number, number> = {};
+    let running = 0;
+
     for (let d = 1; d <= totalDays; d++) {
-      rolling += dailyNet[d] || 0;
-      cumulative[d] = Math.max(0, rolling);
+      const dayTxs = txByDay[d];
+      for (const t of dayTxs) {
+        const amt = typeof t.amount === 'number' && !isNaN(t.amount) ? t.amount : 0;
+        if (t.type === 'income') {
+          running += amt;
+        } else if (t.type === 'expense') {
+          const refunded = typeof t.refundedAmount === 'number' ? Math.min(amt, t.refundedAmount) : 0;
+          running -= (amt - refunded);
+        } else if (t.type === 'refund') {
+          if (!t.targetExpenseIds || t.targetExpenseIds.length === 0) {
+            running += amt;
+          }
+        }
+      }
+      balances[d] = Number(running.toFixed(2));
     }
 
-    const spent = cumulative[daysLimit] || 0;
-    return { cumulativeByDay: cumulative, totalSpent: spent };
+    return {
+      balanceByDay: balances,
+      dayTransactionsMap: txByDay,
+      latestBalance: balances[daysLimit] ?? 0,
+    };
   }, [transactions, periodKey, totalDays, daysLimit]);
 
   // Chart layout geometry
   const paddingLeft = 14;
   const paddingRight = 14;
-  const paddingTop = 24;
-  const paddingBottom = 28;
+  const paddingTop = 16;
+  const paddingBottom = 24;
 
   const chartWidth = Math.max(10, width - paddingLeft - paddingRight);
   const chartHeight = Math.max(10, height - paddingTop - paddingBottom);
 
-  const maxSpent = Math.max(...Object.values(cumulativeByDay), 0);
-  const maxY = Math.max(totalIncome, maxSpent, 100) * 1.12;
+  const activeBalances = Object.entries(balanceByDay)
+    .filter(([d]) => parseInt(d, 10) <= daysLimit)
+    .map(([, val]) => val);
+
+  const minVal = Math.min(0, ...activeBalances);
+  const maxVal = Math.max(totalIncome, 100, ...activeBalances);
+  const range = maxVal - minVal || 1;
+  const maxY = maxVal + range * 0.08;
+  const minY = Math.min(0, minVal - range * 0.05);
 
   const getX = (day: number) => paddingLeft + ((day - 1) / Math.max(1, totalDays - 1)) * chartWidth;
-  const getY = (val: number) => paddingTop + chartHeight - (Math.max(0, val) / maxY) * chartHeight;
+  const getY = (val: number) =>
+    paddingTop + chartHeight - ((val - minY) / Math.max(1, maxY - minY)) * chartHeight;
 
   // Build points array for days 1 .. daysLimit
   const points = useMemo(() => {
-    const pts: { day: number; spent: number; x: number; y: number }[] = [];
+    const pts: { day: number; balance: number; x: number; y: number }[] = [];
     for (let d = 1; d <= daysLimit; d++) {
-      const spent = cumulativeByDay[d] || 0;
+      const bal = balanceByDay[d] ?? 0;
       pts.push({
         day: d,
-        spent,
+        balance: bal,
         x: getX(d),
-        y: getY(spent),
+        y: getY(bal),
       });
     }
     return pts;
-  }, [daysLimit, cumulativeByDay, chartWidth, chartHeight, maxY]);
+  }, [daysLimit, balanceByDay, chartWidth, chartHeight, maxY, minY]);
 
-  // Build smooth bezier path
+  // Build smooth bezier line path
   const linePath = useMemo(() => {
     if (points.length === 0) return '';
     if (points.length === 1) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
@@ -111,135 +157,216 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
     return path;
   }, [points]);
 
+  const zeroBaselineY = getY(0);
+
   const areaPath = useMemo(() => {
     if (points.length < 2 || !linePath) return '';
     const first = points[0];
     const last = points[points.length - 1];
-    const bottomY = (paddingTop + chartHeight).toFixed(1);
+    const bottomY = Math.min(paddingTop + chartHeight, zeroBaselineY).toFixed(1);
     return `${linePath} L ${last.x.toFixed(1)} ${bottomY} L ${first.x.toFixed(1)} ${bottomY} Z`;
-  }, [points, linePath, paddingTop, chartHeight]);
+  }, [points, linePath, paddingTop, chartHeight, zeroBaselineY]);
 
-  // Touch handler to detect selected day
-  const handleTouch = (event: GestureResponderEvent) => {
+  // Trade Republic continuous finger scrubbing handlers
+  const updateScrubbingPosition = (event: GestureResponderEvent) => {
     const locX = event.nativeEvent.locationX;
     const ratio = Math.max(0, Math.min(1, (locX - paddingLeft) / chartWidth));
     const day = Math.max(1, Math.min(daysLimit, Math.round(1 + ratio * (totalDays - 1))));
-    setSelectedDay((prev) => (prev === day ? null : day));
+
+    if (day !== lastHapticDay.current) {
+      lastHapticDay.current = day;
+      try {
+        Haptics.selectionAsync();
+      } catch {}
+    }
+
+    setScrubbingDay(day);
+    setSelectedDay(day);
   };
 
-  const selectedPoint = useMemo(() => {
-    if (selectedDay === null) return null;
-    return points.find((p) => p.day === selectedDay) || null;
-  }, [selectedDay, points]);
+  const handleGrant = (event: GestureResponderEvent) => {
+    onScrubbingChange?.(true);
+    updateScrubbingPosition(event);
+  };
 
-  const todayPoint = useMemo(() => {
-    if (!isCurrentMonth) return null;
-    return points.find((p) => p.day === currentDay) || null;
-  }, [isCurrentMonth, currentDay, points]);
+  const handleMove = (event: GestureResponderEvent) => {
+    updateScrubbingPosition(event);
+  };
 
-  const yIncome = totalIncome > 0 ? getY(totalIncome) : null;
-  const spendingColor = theme.colors.pillar.wants;
-  const incomeColor = theme.colors.status.income;
+  const handleRelease = () => {
+    onScrubbingChange?.(false);
+    setScrubbingDay(null);
+  };
+
+  // Active day info displayed in header & tooltip
+  const activeDay = scrubbingDay ?? selectedDay ?? (isCurrentMonth ? currentDay : totalDays);
+  const activePoint = points.find((p) => p.day === activeDay) || points[points.length - 1] || null;
+  const activeBalance = activePoint ? activePoint.balance : latestBalance;
+
+  // Format date & operations for active day
+  const formattedDate = useMemo(() => {
+    const monthName = MONTH_NAMES_FR[month - 1] || '';
+    if (activeDay === 1) return `1er ${monthName}`;
+    return `${activeDay} ${monthName}`;
+  }, [activeDay, month]);
+
+  const operationsSummary = useMemo(() => {
+    const txs = dayTransactionsMap[activeDay] || [];
+    if (txs.length === 0) {
+      return 'Aucune opération ce jour';
+    }
+
+    return txs
+      .map((t) => {
+        const isInc = t.type === 'income';
+        const sign = isInc ? '+' : '-';
+        const netAmt = t.type === 'expense' && t.refundedAmount
+          ? Math.max(0, t.amount - t.refundedAmount)
+          : t.amount;
+        return `${sign}${formatCurrency(netAmt, currency)} ${t.title || t.category}`;
+      })
+      .join(' • ');
+  }, [activeDay, dayTransactionsMap, currency]);
+
+  const isScrubbingActive = scrubbingDay !== null;
+  const balanceColor = activeBalance >= 0 ? theme.colors.status.income : theme.colors.status.overrun;
 
   return (
     <View style={[styles.container, { width }]}>
-      {/* Interactive Touch Container for Chart */}
-      <Pressable onPress={handleTouch} style={{ width, height, position: 'relative' }}>
+      {/* 1. Trade Republic Interactive Header */}
+      <View style={styles.header}>
+        <View style={styles.headerTopRow}>
+          <Text
+            style={[
+              theme.typography.caption,
+              { color: isScrubbingActive ? theme.colors.text.primary : theme.colors.text.secondary, fontWeight: '600' },
+            ]}
+          >
+            {isScrubbingActive ? `Solde au ${formattedDate}` : `Solde disponible (${formattedDate})`}
+          </Text>
+
+          {isScrubbingActive && (
+            <View
+              style={[
+                styles.liveBadge,
+                { backgroundColor: theme.colors.bg.surfaceSubtle, borderRadius: theme.radii.full },
+              ]}
+            >
+              <Text
+                style={[
+                  theme.typography.caption,
+                  { color: theme.colors.text.secondary, fontSize: 10, fontWeight: '700' },
+                ]}
+              >
+                SCRUB
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <Text
+          style={[
+            theme.typography.title1,
+            theme.typography.tabularNums,
+            { color: balanceColor, fontWeight: '800', fontSize: 24, marginTop: 1 },
+          ]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
+          {formatCurrency(activeBalance, currency)}
+        </Text>
+
+        <Text
+          style={[
+            theme.typography.caption,
+            { color: theme.colors.text.secondary, fontSize: 11, marginTop: 2 },
+          ]}
+          numberOfLines={1}
+        >
+          {operationsSummary}
+        </Text>
+      </View>
+
+      {/* 2. Interactive SVG Curve with Gesture Responder */}
+      <View
+        onStartShouldSetResponder={() => true}
+        onMoveShouldSetResponder={() => true}
+        onResponderTerminationRequest={() => false}
+        onResponderGrant={handleGrant}
+        onResponderMove={handleMove}
+        onResponderRelease={handleRelease}
+        onResponderTerminate={handleRelease}
+        style={{ width, height, position: 'relative' }}
+      >
         <Svg width={width} height={height} pointerEvents="none">
           <Defs>
-            <LinearGradient id="spendingGradient" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0%" stopColor={spendingColor} stopOpacity={0.28} />
-              <Stop offset="80%" stopColor={spendingColor} stopOpacity={0.03} />
-              <Stop offset="100%" stopColor={spendingColor} stopOpacity={0} />
+            <LinearGradient id="trBalanceGradient" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0%" stopColor={theme.colors.status.income} stopOpacity={0.32} />
+              <Stop offset="80%" stopColor={theme.colors.status.income} stopOpacity={0.04} />
+              <Stop offset="100%" stopColor={theme.colors.status.income} stopOpacity={0} />
             </LinearGradient>
           </Defs>
 
-          {/* Bottom baseline */}
+          {/* Zero baseline */}
           <Line
             x1={paddingLeft}
-            y1={paddingTop + chartHeight}
+            y1={zeroBaselineY}
             x2={paddingLeft + chartWidth}
-            y2={paddingTop + chartHeight}
+            y2={zeroBaselineY}
             stroke={theme.colors.border.subtle}
             strokeWidth={1}
+            strokeDasharray="4 4"
           />
 
-          {/* Income Ceiling Reference Line */}
-          {yIncome !== null && (
-            <Line
-              x1={paddingLeft}
-              y1={yIncome}
-              x2={paddingLeft + chartWidth}
-              y2={yIncome}
-              stroke={incomeColor}
-              strokeWidth={1.5}
-              strokeDasharray="4 4"
-            />
-          )}
+          {/* Gradient Area under balance curve */}
+          {areaPath.length > 0 && <Path d={areaPath} fill="url(#trBalanceGradient)" />}
 
-          {/* Gradient Area under curve */}
-          {areaPath.length > 0 && <Path d={areaPath} fill="url(#spendingGradient)" />}
-
-          {/* Spending Curve */}
+          {/* Main Net Balance Curve */}
           {linePath.length > 0 && (
             <Path
               d={linePath}
-              stroke={spendingColor}
-              strokeWidth={2.5}
+              stroke={theme.colors.status.income}
+              strokeWidth={2.75}
               fill="none"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           )}
 
-          {/* Current Day Marker (if current month) */}
-          {todayPoint && (
-            <>
-              <Circle
-                cx={todayPoint.x}
-                cy={todayPoint.y}
-                r={7}
-                fill={spendingColor}
-                fillOpacity={0.25}
-              />
-              <Circle
-                cx={todayPoint.x}
-                cy={todayPoint.y}
-                r={4}
-                fill={spendingColor}
-                stroke="#FFFFFF"
-                strokeWidth={1.5}
-              />
-            </>
-          )}
-
-          {/* Selected Day Cursor Line & Point */}
-          {selectedPoint && (
+          {/* Vertical cursor & active point on curve */}
+          {activePoint && (
             <>
               <Line
-                x1={selectedPoint.x}
+                x1={activePoint.x}
                 y1={paddingTop}
-                x2={selectedPoint.x}
+                x2={activePoint.x}
                 y2={paddingTop + chartHeight}
-                stroke={theme.colors.text.muted}
-                strokeWidth={1}
+                stroke={theme.colors.text.secondary}
+                strokeWidth={1.5}
                 strokeDasharray="3 3"
                 opacity={0.8}
               />
               <Circle
-                cx={selectedPoint.x}
-                cy={selectedPoint.y}
-                r={5.5}
+                cx={activePoint.x}
+                cy={activePoint.y}
+                r={7}
+                fill={theme.colors.status.income}
+                fillOpacity={0.25}
+              />
+              <Circle
+                cx={activePoint.x}
+                cy={activePoint.y}
+                r={4}
                 fill={theme.colors.bg.surface}
-                stroke={spendingColor}
+                stroke={theme.colors.status.income}
                 strokeWidth={2.5}
               />
             </>
           )}
         </Svg>
 
-        {/* Floating Tooltip when day is touched */}
-        {selectedPoint && (
+        {/* Floating Tooltip indicator on active point */}
+        {activePoint && (isScrubbingActive || selectedDay !== null) && (
           <View
             pointerEvents="none"
             style={[
@@ -247,13 +374,13 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
               {
                 backgroundColor: theme.colors.bg.surface,
                 borderColor: theme.colors.border.subtle,
-                left: Math.max(8, Math.min(width - 120, selectedPoint.x - 55)),
-                top: Math.max(2, selectedPoint.y - 48),
+                left: Math.max(8, Math.min(width - 110, activePoint.x - 50)),
+                top: Math.max(0, activePoint.y - 42),
                 shadowColor: '#000',
                 shadowOffset: { width: 0, height: 2 },
                 shadowOpacity: 0.2,
                 shadowRadius: 4,
-                elevation: 5,
+                elevation: 6,
               },
             ]}
           >
@@ -263,22 +390,22 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
                 { color: theme.colors.text.secondary, fontSize: 10, fontWeight: '600' },
               ]}
             >
-              Jour {selectedPoint.day}
+              {formattedDate}
             </Text>
             <Text
               style={[
                 theme.typography.caption,
                 theme.typography.tabularNums,
-                { color: theme.colors.text.primary, fontWeight: '700', fontSize: 12 },
+                { color: balanceColor, fontWeight: '700', fontSize: 12 },
               ]}
             >
-              {formatCurrency(selectedPoint.spent, currency)}
+              {formatCurrency(activePoint.balance, currency)}
             </Text>
           </View>
         )}
-      </Pressable>
+      </View>
 
-      {/* X-Axis day markers */}
+      {/* 3. X-Axis Day Markers */}
       <View style={[styles.xAxisRow, { paddingHorizontal: paddingLeft }]}>
         <Text style={[theme.typography.caption, { color: theme.colors.text.muted, fontSize: 10 }]}>
           J 1
@@ -293,35 +420,6 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
           J {totalDays}
         </Text>
       </View>
-
-      {/* Clean Legends Row */}
-      <View style={styles.legendRow}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendLineDashed, { borderColor: incomeColor }]} />
-          <Text
-            style={[
-              theme.typography.caption,
-              theme.typography.tabularNums,
-              { color: theme.colors.text.secondary, fontWeight: '600', fontSize: 11 },
-            ]}
-          >
-            Revenus {totalIncome > 0 ? `(${formatCurrency(totalIncome, currency)})` : ''}
-          </Text>
-        </View>
-
-        <View style={styles.legendItem}>
-          <View style={[styles.legendLineSolid, { backgroundColor: spendingColor }]} />
-          <Text
-            style={[
-              theme.typography.caption,
-              theme.typography.tabularNums,
-              { color: theme.colors.text.secondary, fontWeight: '600', fontSize: 11 },
-            ]}
-          >
-            Dépenses cumulées ({formatCurrency(totalSpent, currency)})
-          </Text>
-        </View>
-      </View>
     </View>
   );
 };
@@ -332,44 +430,34 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignSelf: 'center',
   },
+  header: {
+    width: '100%',
+    paddingHorizontal: 14,
+    marginBottom: 4,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  liveBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
   tooltip: {
     position: 'absolute',
     alignItems: 'center',
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 8,
     borderWidth: 1,
-    minWidth: 90,
+    minWidth: 85,
     zIndex: 20,
   },
   xAxisRow: {
     width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: -8,
-  },
-  legendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-    marginTop: 10,
-    flexWrap: 'wrap',
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  legendLineDashed: {
-    width: 16,
-    height: 0,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-  },
-  legendLineSolid: {
-    width: 14,
-    height: 3,
-    borderRadius: 2,
+    marginTop: -4,
   },
 });
