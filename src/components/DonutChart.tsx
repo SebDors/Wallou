@@ -94,6 +94,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({
     // Update currentEndAngle for next pillar
     currentEndAngle -= allocatedAngle;
 
+    const allocatedEndAngle = allocatedStartAngle + allocatedAngle;
     const midAngle = allocatedStartAngle + allocatedAngle / 2;
 
     return {
@@ -102,6 +103,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({
       allocatedAngle,
       allocatedLength,
       allocatedStartAngle,
+      allocatedEndAngle,
       midAngle,
       usageFraction,
       spentLength,
@@ -130,11 +132,20 @@ export const DonutChart: React.FC<DonutChartProps> = ({
       return;
     }
 
+    // Taps too far outside also dismiss tooltip
+    const outerRadius = radius + strokeWidth / 2;
+    if (distance > outerRadius + 35) {
+      if (selectedTooltipPillar) {
+        setSelectedTooltipPillar(null);
+      }
+      return;
+    }
+
     // Convert touch to angle in degrees [0, 360) where 0° is 3 o'clock and increases clockwise
     const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
     const normalizedTouch = ((angleDeg % 360) + 360) % 360;
 
-    // Detect which pillar arc contains the touch angle
+    // Detect which pillar arc contains the touch angle across its entire allocated span
     const clickedSegment = segments.find((seg) => {
       const start = ((seg.allocatedStartAngle % 360) + 360) % 360;
       const sweep = seg.allocatedAngle;
@@ -152,14 +163,16 @@ export const DonutChart: React.FC<DonutChartProps> = ({
     return segments.find((s) => s.pillar === selectedTooltipPillar) || null;
   }, [selectedTooltipPillar, segments]);
 
+  // Position tooltip radially OUTSIDE the donut ring
   const bubblePosition = useMemo(() => {
     if (!activeSegment) return null;
     const rad = (activeSegment.midAngle * Math.PI) / 180;
-    const dist = radius * 0.58;
+    // Outer edge of ring is (radius + strokeWidth / 2) = center. Offset by margin.
+    const dist = (radius + strokeWidth / 2) + 18;
     const x = center + dist * Math.cos(rad);
     const y = center + dist * Math.sin(rad);
     return { x, y };
-  }, [activeSegment, center, radius]);
+  }, [activeSegment, center, radius, strokeWidth]);
 
   const innerHoleSize = Math.max(0, (radius - strokeWidth / 2) * 2);
 
@@ -309,6 +322,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     position: 'relative',
     alignSelf: 'center',
+    overflow: 'visible',
+    marginVertical: 12,
   },
   centerOverlay: {
     position: 'absolute',
@@ -328,13 +343,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
     borderWidth: 1.5,
-    transform: [{ translateX: -40 }, { translateY: -12 }],
-    zIndex: 10,
-    gap: 4,
+    transform: [{ translateX: -44 }, { translateY: -14 }],
+    zIndex: 30,
+    gap: 5,
   },
   tooltipDot: {
     width: 6,
