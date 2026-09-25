@@ -205,60 +205,96 @@ export default function DashboardScreen() {
 
       {/* 2. Hero Card: Reste à Vivre & Net Cashflow */}
       <Card style={styles.heroCard}>
-        <Text
-          style={[
-            theme.typography.caption,
-            {
-              color: theme.colors.text.secondary,
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-              fontWeight: '600',
-            },
-          ]}
-        >
-          Reste à vivre (Besoins + Envies)
-        </Text>
+        <View style={styles.heroMainRow}>
+          {/* Left: Reste à vivre */}
+          <View style={styles.heroLeftCol}>
+            <Text
+              style={[
+                theme.typography.caption,
+                {
+                  color: theme.colors.text.secondary,
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                  fontWeight: '600',
+                },
+              ]}
+            >
+              Reste à vivre (B+E)
+            </Text>
 
-        <Text
-          style={[
-            theme.typography.display,
-            theme.typography.tabularNums,
-            {
-              color:
-                summary.resteAVivre < 0
-                  ? theme.colors.status.overrun
-                  : theme.colors.text.primary,
-              marginTop: 4,
-            },
-          ]}
-        >
-          {formatCurrency(summary.resteAVivre, currency)}
-        </Text>
+            <Text
+              style={[
+                theme.typography.display,
+                theme.typography.tabularNums,
+                {
+                  color:
+                    summary.resteAVivre < 0
+                      ? theme.colors.status.overrun
+                      : theme.colors.text.primary,
+                  marginTop: 2,
+                  fontSize: 26,
+                },
+              ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
+              {formatCurrency(summary.resteAVivre, currency)}
+            </Text>
+          </View>
 
-        {/* Daily Allowance Banner */}
-        <View
-          style={[
-            styles.dailyBadge,
-            {
-              backgroundColor: theme.colors.bg.surfaceSubtle,
-              borderRadius: theme.radii.sm,
-              marginTop: theme.spacing.md,
-            },
-          ]}
-        >
-          <Text
+          {/* Right: Budget journalier disponible */}
+          <View
             style={[
-              theme.typography.caption,
-              theme.typography.tabularNums,
-              { color: theme.colors.text.secondary },
+              styles.dailyBadgeRight,
+              {
+                backgroundColor: theme.colors.bg.surfaceSubtle,
+                borderColor: theme.colors.border.subtle,
+                borderRadius: theme.radii.md,
+              },
             ]}
           >
-            Budget journalier disponible :{' '}
-            <Text style={{ color: theme.colors.text.primary, fontWeight: '700' }}>
-              {formatCurrency(dailyAllowance, currency)} / jour
-            </Text>{' '}
-            ({daysLeft}j restants)
-          </Text>
+            <Text
+              style={[
+                theme.typography.caption,
+                {
+                  color: theme.colors.text.secondary,
+                  textTransform: 'uppercase',
+                  fontSize: 10,
+                  letterSpacing: 0.4,
+                  fontWeight: '600',
+                },
+              ]}
+            >
+              Dispo / jour
+            </Text>
+            <Text
+              style={[
+                theme.typography.body,
+                theme.typography.tabularNums,
+                {
+                  color: theme.colors.text.primary,
+                  fontWeight: '700',
+                  marginTop: 1,
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {formatCurrency(dailyAllowance, currency)}
+            </Text>
+            <Text
+              style={[
+                theme.typography.caption,
+                theme.typography.tabularNums,
+                {
+                  color: theme.colors.text.muted,
+                  fontSize: 10,
+                  marginTop: 1,
+                },
+              ]}
+            >
+              {daysLeft}j restants
+            </Text>
+          </View>
         </View>
 
         {/* Income vs Expenses summary strip */}
@@ -642,6 +678,22 @@ const styles = StyleSheet.create({
   },
   heroCard: {
     marginBottom: 12,
+  },
+  heroMainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  heroLeftCol: {
+    flex: 1,
+  },
+  dailyBadgeRight: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'flex-end',
+    borderWidth: 1,
+    minWidth: 110,
   },
   dailyBadge: {
     paddingHorizontal: 12,
