@@ -109,4 +109,38 @@ describe('BudgetContext', () => {
       })
     ).rejects.toThrow('RATIO_SUM_INVALID');
   });
+
+  it('supports 100% user-defined categories (empty by default, add, delete)', async () => {
+    await act(async () => {
+      create(
+        <BudgetProvider>
+          <TestConsumer />
+        </BudgetProvider>
+      );
+    });
+
+    // Default categories is empty
+    expect(capturedContext?.categories).toEqual([]);
+
+    // Add custom category
+    await act(async () => {
+      await capturedContext?.addCategory('Courses');
+    });
+
+    expect(capturedContext?.categories).toContain('Courses');
+
+    // Add second custom category
+    await act(async () => {
+      await capturedContext?.addCategory('Loisirs');
+    });
+
+    expect(capturedContext?.categories).toEqual(['Courses', 'Loisirs']);
+
+    // Delete custom category
+    await act(async () => {
+      await capturedContext?.deleteCategory('Courses');
+    });
+
+    expect(capturedContext?.categories).toEqual(['Loisirs']);
+  });
 });

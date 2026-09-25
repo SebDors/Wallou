@@ -662,9 +662,17 @@ export default function SettingsScreen() {
 
         {/* Categories Chips */}
         <View style={styles.categoriesList}>
-          {categories.map((cat) => {
-            const isCustom = (settings?.customCategories || []).includes(cat);
-            return (
+          {categories.length === 0 ? (
+            <Text
+              style={[
+                theme.typography.caption,
+                { color: theme.colors.text.muted, fontStyle: 'italic', paddingVertical: 6 },
+              ]}
+            >
+              Aucune catégorie. Créez vos propres catégories personnalisées ci-dessus.
+            </Text>
+          ) : (
+            categories.map((cat) => (
               <View
                 key={cat}
                 style={[
@@ -685,27 +693,25 @@ export default function SettingsScreen() {
                 >
                   {cat}
                 </Text>
-                {isCustom && (
-                  <Pressable
-                    onPress={() => {
-                      showConfirm(
-                        'Supprimer cette catégorie ?',
-                        `Voulez-vous supprimer "${cat}" ?`,
-                        async () => {
-                          await deleteCategory(cat);
-                        },
-                        'Supprimer',
-                        true
-                      );
-                    }}
-                    style={styles.chipDeleteBtn}
-                  >
-                    <Trash2 size={13} color={theme.colors.status.overrun} />
-                  </Pressable>
-                )}
+                <Pressable
+                  onPress={() => {
+                    showConfirm(
+                      'Supprimer cette catégorie ?',
+                      `Voulez-vous supprimer "${cat}" ?`,
+                      async () => {
+                        await deleteCategory(cat);
+                      },
+                      'Supprimer',
+                      true
+                    );
+                  }}
+                  style={styles.chipDeleteBtn}
+                >
+                  <Trash2 size={13} color={theme.colors.status.overrun} />
+                </Pressable>
               </View>
-            );
-          })}
+            ))
+          )}
         </View>
       </Card>
 

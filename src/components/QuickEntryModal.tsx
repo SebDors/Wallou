@@ -520,7 +520,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
                           { color: theme.colors.text.secondary, fontWeight: '600' },
                         ]}
                       >
-                        Ajouter
+                        {categories.length === 0 ? 'Ajouter une catégorie' : 'Ajouter'}
                       </Text>
                     </Pressable>
                   )}

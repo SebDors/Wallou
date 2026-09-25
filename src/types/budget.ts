@@ -25,18 +25,7 @@ export const PILLAR_NAMES: Record<PillarId, string> = {
   savings: 'Épargne',
 };
 
-export const DEFAULT_CATEGORIES: string[] = [
-  'Loyer & Charges',
-  'Courses & Alimentation',
-  'Transports',
-  'Santé',
-  'Restaurant & Sorties',
-  'Shopping & Loisirs',
-  'Abonnements',
-  'Épargne & Investissement',
-  'Salaire',
-  'Autre',
-];
+export const DEFAULT_CATEGORIES: string[] = [];
 
 export interface Transaction {
   id: string;                    // UUID v4 or unique ID
