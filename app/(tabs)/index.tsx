@@ -18,9 +18,13 @@ import {
   Receipt,
   ArrowRight,
   BarChart3,
+  Info,
+  CalendarClock,
+  CheckCircle2,
 } from 'lucide-react-native';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useBudget } from '../../src/context/BudgetContext';
+import { useDialog } from '../../src/context/DialogContext';
 import { useQuickEntry } from '../../src/context/QuickEntryContext';
 import { DonutChart } from '../../src/components/DonutChart';
 import { MonthlySpendingCurveChart } from '../../src/components/MonthlySpendingCurveChart';
@@ -35,12 +39,14 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const router = useRouter();
+  const { showDialog } = useDialog();
   const {
     summary,
     currentPeriodKey,
     setPeriodKey,
     settings,
     refreshCalculations,
+    recurring,
   } = useBudget();
   const { openQuickEntry } = useQuickEntry();
 
@@ -85,6 +91,81 @@ export default function DashboardScreen() {
   const currentDay = isCurrentMonth ? now.getDate() : totalDaysInMonth;
   const daysLeft = Math.max(1, totalDaysInMonth - currentDay + 1);
   const dailyAllowance = Math.max(0, summary.resteAVivre / daysLeft);
+
+  const [isScrubbingChart, setIsScrubbingChart] = useState(false);
+
+  // Identify next upcoming recurring expense or scheduled transaction in the month
+  const nextUpcomingExpense = React.useMemo(() => {
+    interface UpcomingCandidate {
+      title: string;
+      amount: number;
+      day: number;
+      category: string;
+    }
+    const candidates: UpcomingCandidate[] = [];
+
+    // 1. From active recurring items
+    if (recurring && recurring.length > 0) {
+      for (const item of recurring) {
+        if (!item.isActive || item.type !== 'expense') continue;
+        const dueDay = Math.min(item.dayOfMonth, totalDaysInMonth);
+        if (isCurrentMonth ? dueDay >= currentDay : true) {
+          const alreadyExecuted = summary.transactions.some(
+            (tx) => tx.recurringId === item.id
+          );
+          if (!alreadyExecuted) {
+            candidates.push({
+              title: item.title || item.category,
+              amount: item.amount,
+              day: dueDay,
+              category: item.category,
+            });
+          }
+        }
+      }
+    }
+
+    // 2. Also check planned/future expense transactions in this month
+    for (const tx of summary.transactions) {
+      if (tx.type !== 'expense' || !tx.date) continue;
+      const txDay = new Date(tx.date).getDate();
+      if (isCurrentMonth && txDay > currentDay) {
+        const alreadyIn = candidates.some((c) => c.title === tx.title && c.day === txDay);
+        if (!alreadyIn) {
+          const netAmt = tx.refundedAmount ? Math.max(0, tx.amount - tx.refundedAmount) : tx.amount;
+          candidates.push({
+            title: tx.title || tx.category,
+            amount: netAmt,
+            day: txDay,
+            category: tx.category,
+          });
+        }
+      }
+    }
+
+    if (candidates.length === 0) return null;
+
+    candidates.sort((a, b) => a.day - b.day);
+    const nextItem = candidates[0];
+
+    const diff = nextItem.day - currentDay;
+    let relativeLabel: string;
+    if (diff === 0) {
+      relativeLabel = `Aujourd'hui - ${String(nextItem.day).padStart(2, '0')}/${monthStr}`;
+    } else if (diff === 1) {
+      relativeLabel = `Demain - ${String(nextItem.day).padStart(2, '0')}/${monthStr}`;
+    } else if (diff > 1) {
+      relativeLabel = `Dans ${diff} jours - ${String(nextItem.day).padStart(2, '0')}/${monthStr}`;
+    } else {
+      relativeLabel = `${String(nextItem.day).padStart(2, '0')}/${monthStr}`;
+    }
+
+    return {
+      ...nextItem,
+      relativeLabel,
+      resteAfter: summary.resteAVivre - nextItem.amount,
+    };
+  }, [recurring, summary.transactions, summary.resteAVivre, isCurrentMonth, currentDay, totalDaysInMonth, monthStr]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -213,19 +294,35 @@ export default function DashboardScreen() {
         <View style={styles.heroMainRow}>
           {/* Left: Reste à vivre */}
           <View style={styles.heroLeftCol}>
-            <Text
-              style={[
-                theme.typography.caption,
-                {
-                  color: theme.colors.text.secondary,
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                  fontWeight: '600',
-                },
-              ]}
-            >
-              Reste à vivre
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text
+                style={[
+                  theme.typography.caption,
+                  {
+                    color: theme.colors.text.secondary,
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.5,
+                    fontWeight: '600',
+                  },
+                ]}
+              >
+                Reste à vivre
+              </Text>
+              <Pressable
+                onPress={() =>
+                  showDialog({
+                    title: 'Reste à vivre',
+                    message:
+                      "Ce montant représente ce qu'il vous reste pour vos dépenses courantes (Besoins et Envies). La valeur entre parenthèses ci-dessous inclut également votre Épargne restante.",
+                    variant: 'info',
+                    buttons: [{ text: 'Compris' }],
+                  })
+                }
+                hitSlop={8}
+              >
+                <Info size={14} color={theme.colors.text.muted} />
+              </Pressable>
+            </View>
 
             <Text
               style={[
@@ -244,6 +341,20 @@ export default function DashboardScreen() {
               adjustsFontSizeToFit
             >
               {formatCurrency(summary.resteAVivre, currency)}
+            </Text>
+
+            <Text
+              style={[
+                theme.typography.caption,
+                theme.typography.tabularNums,
+                {
+                  color: theme.colors.text.secondary,
+                  marginTop: 2,
+                  fontSize: 12,
+                },
+              ]}
+            >
+              (avec épargne : {formatCurrency(summary.netBalance, currency)})
             </Text>
           </View>
 
@@ -363,6 +474,111 @@ export default function DashboardScreen() {
         </View>
       </Card>
 
+      {/* 2b. Carte Prochaine Dépense à Venir */}
+      {nextUpcomingExpense ? (
+        <Card
+          style={[
+            styles.upcomingCard,
+            {
+              backgroundColor: theme.colors.bg.surface,
+              borderColor: theme.colors.border.subtle,
+              marginTop: theme.spacing.sm,
+            },
+          ]}
+        >
+          <View style={styles.upcomingRow}>
+            <View
+              style={[
+                styles.upcomingIconBox,
+                {
+                  backgroundColor: theme.colors.bg.surfaceSubtle,
+                  borderRadius: theme.radii.md,
+                },
+              ]}
+            >
+              <CalendarClock size={20} color={theme.colors.status.warning} />
+            </View>
+
+            <View style={styles.upcomingInfo}>
+              <View style={styles.upcomingTitleRow}>
+                <Text
+                  style={[
+                    theme.typography.body,
+                    { color: theme.colors.text.primary, fontWeight: '700' },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {nextUpcomingExpense.title}
+                </Text>
+                <Text
+                  style={[
+                    theme.typography.caption,
+                    theme.typography.tabularNums,
+                    { color: theme.colors.text.secondary, fontWeight: '600' },
+                  ]}
+                >
+                  {nextUpcomingExpense.relativeLabel}
+                </Text>
+              </View>
+
+              <View style={styles.upcomingBottomRow}>
+                <Text
+                  style={[
+                    theme.typography.caption,
+                    theme.typography.tabularNums,
+                    { color: theme.colors.text.secondary, fontSize: 11 },
+                  ]}
+                >
+                  Reste à vivre prévu :{' '}
+                  <Text
+                    style={{
+                      fontWeight: '700',
+                      color:
+                        nextUpcomingExpense.resteAfter < 0
+                          ? theme.colors.status.overrun
+                          : theme.colors.text.primary,
+                    }}
+                  >
+                    {formatCurrency(nextUpcomingExpense.resteAfter, currency)}
+                  </Text>
+                </Text>
+
+                <Text
+                  style={[
+                    theme.typography.body,
+                    theme.typography.tabularNums,
+                    { color: theme.colors.status.overrun, fontWeight: '700' },
+                  ]}
+                >
+                  -{formatCurrency(nextUpcomingExpense.amount, currency)}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </Card>
+      ) : (
+        <View
+          style={[
+            styles.sereneCard,
+            {
+              backgroundColor: theme.colors.bg.surfaceSubtle,
+              borderRadius: theme.radii.md,
+              marginTop: theme.spacing.sm,
+            },
+          ]}
+        >
+          <CheckCircle2 size={16} color={theme.colors.status.income} style={{ marginRight: 8 }} />
+          <Text
+            style={[
+              theme.typography.caption,
+              { color: theme.colors.text.secondary, fontWeight: '500' },
+            ]}
+          >
+            Aucune dépense en attente ce mois-ci • Budget serein !
+          </Text>
+        </View>
+      )}
+
       {/* 3. Charts Carousel Section (Donut Chart & Monthly Evolution Curve) */}
       <View
         style={[styles.chartSection, { marginVertical: theme.spacing.md }]}
@@ -375,6 +591,7 @@ export default function DashboardScreen() {
           ref={chartScrollRef}
           horizontal
           pagingEnabled
+          scrollEnabled={!isScrubbingChart}
           showsHorizontalScrollIndicator={false}
           onMomentumScrollEnd={(e) => {
             const offsetX = e.nativeEvent.contentOffset.x;
@@ -477,7 +694,8 @@ export default function DashboardScreen() {
               periodKey={currentPeriodKey}
               currency={currency}
               width={carouselWidth || 340}
-              height={200}
+              height={220}
+              onScrubbingChange={setIsScrubbingChart}
             />
           </View>
         </ScrollView>
@@ -905,5 +1123,40 @@ const styles = StyleSheet.create({
   },
   txMain: {
     flex: 1,
+  },
+  upcomingCard: {
+    padding: 12,
+  },
+  upcomingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  upcomingIconBox: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  upcomingInfo: {
+    flex: 1,
+  },
+  upcomingTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  upcomingBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 3,
+  },
+  sereneCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
   },
 });
