@@ -6,7 +6,6 @@ import {
   Modal,
   Pressable,
   TextInput,
-  KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
   ScrollView,
@@ -178,8 +177,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
       <TouchableWithoutFeedback onPress={handleClose}>
         <View style={styles.backdrop}>
           <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            <View
               style={[
                 styles.sheet,
                 {
@@ -224,10 +222,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
                 ]}
               >
                 <Pressable
-                  onPress={() => {
-                    setTxType('expense');
-                    setSelectedExpenseIds([]);
-                  }}
+                  onPress={() => setTxType('expense')}
                   style={[
                     styles.typeTab,
                     txType === 'expense' && {
@@ -267,10 +262,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
                 </Pressable>
 
                 <Pressable
-                  onPress={() => {
-                    setTxType('income');
-                    setSelectedExpenseIds([]);
-                  }}
+                  onPress={() => setTxType('income')}
                   style={[
                     styles.typeTab,
                     txType === 'income' && {
@@ -654,7 +646,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
                   </Pressable>
                 </View>
               )}
-            </KeyboardAvoidingView>
+            </View>
           </TouchableWithoutFeedback>
         </View>
       </TouchableWithoutFeedback>
