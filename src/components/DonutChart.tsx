@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, GestureResponderEvent } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { PillarId, PILLAR_NAMES } from '../types/budget';
 import { useTheme } from '../context/ThemeContext';
@@ -114,6 +114,39 @@ export const DonutChart: React.FC<DonutChartProps> = ({
     onSelectPillar?.(pillar);
   };
 
+  const handleContainerPress = (event: GestureResponderEvent) => {
+    const locationX = event.nativeEvent?.locationX ?? center;
+    const locationY = event.nativeEvent?.locationY ?? center;
+    const dx = locationX - center;
+    const dy = locationY - center;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // Inner radius boundary: inside the hole taps dismiss tooltip
+    const innerRadius = radius - strokeWidth / 2;
+    if (distance < innerRadius) {
+      if (selectedTooltipPillar) {
+        setSelectedTooltipPillar(null);
+      }
+      return;
+    }
+
+    // Convert touch to angle in degrees [0, 360) where 0° is 3 o'clock and increases clockwise
+    const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+    const normalizedTouch = ((angleDeg % 360) + 360) % 360;
+
+    // Detect which pillar arc contains the touch angle
+    const clickedSegment = segments.find((seg) => {
+      const start = ((seg.allocatedStartAngle % 360) + 360) % 360;
+      const sweep = seg.allocatedAngle;
+      const diff = ((normalizedTouch - start) % 360 + 360) % 360;
+      return diff >= 0 && diff < sweep;
+    });
+
+    if (clickedSegment) {
+      handlePillarPress(clickedSegment.pillar);
+    }
+  };
+
   const activeSegment = useMemo(() => {
     if (!selectedTooltipPillar) return null;
     return segments.find((s) => s.pillar === selectedTooltipPillar) || null;
@@ -128,9 +161,14 @@ export const DonutChart: React.FC<DonutChartProps> = ({
     return { x, y };
   }, [activeSegment, center, radius]);
 
+  const innerHoleSize = Math.max(0, (radius - strokeWidth / 2) * 2);
+
   return (
-    <View style={[styles.container, { width: size, height: size }]}>
-      <Svg width={size} height={size}>
+    <Pressable
+      onPress={handleContainerPress}
+      style={[styles.container, { width: size, height: size }]}
+    >
+      <Svg width={size} height={size} pointerEvents="none">
         {/* Background track circle */}
         <Circle
           cx={center}
@@ -159,7 +197,6 @@ export const DonutChart: React.FC<DonutChartProps> = ({
               rotation={seg.allocatedStartAngle}
               origin={`${center}, ${center}`}
               fill="transparent"
-              onPress={() => handlePillarPress(seg.pillar)}
             />
           );
         })}
@@ -184,7 +221,6 @@ export const DonutChart: React.FC<DonutChartProps> = ({
               rotation={seg.spentStartAngle}
               origin={`${center}, ${center}`}
               fill="transparent"
-              onPress={() => handlePillarPress(seg.pillar)}
             />
           );
         })}
@@ -227,34 +263,43 @@ export const DonutChart: React.FC<DonutChartProps> = ({
       )}
 
       {/* Center content */}
-      <Pressable
-        onPress={() => selectedTooltipPillar && setSelectedTooltipPillar(null)}
-        style={styles.centerOverlay}
-      >
-        <Text
+      <View style={styles.centerOverlay} pointerEvents="box-none">
+        <Pressable
+          onPress={() => setSelectedTooltipPillar(null)}
           style={[
-            theme.typography.caption,
-            { color: theme.colors.text.secondary, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 11 },
+            styles.centerHole,
+            {
+              width: innerHoleSize,
+              height: innerHoleSize,
+              borderRadius: innerHoleSize / 2,
+            },
           ]}
-          numberOfLines={1}
         >
-          {activeSegment ? `${activeSegment.name} (${activeSegment.ratio}%)` : centerLabel}
-        </Text>
-        <Text
-          style={[
-            theme.typography.title2,
-            theme.typography.tabularNums,
-            { color: theme.colors.text.primary, fontWeight: '700', marginTop: 2, fontSize: 18 },
-          ]}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-        >
-          {activeSegment
-            ? `${Math.round(activeSegment.spent)} / ${Math.round(activeSegment.allocated)} ${currency}`
-            : (centerValue || `0,00 ${currency}`)}
-        </Text>
-      </Pressable>
-    </View>
+          <Text
+            style={[
+              theme.typography.caption,
+              { color: theme.colors.text.secondary, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 11 },
+            ]}
+            numberOfLines={1}
+          >
+            {activeSegment ? `${activeSegment.name} (${activeSegment.ratio}%)` : centerLabel}
+          </Text>
+          <Text
+            style={[
+              theme.typography.title2,
+              theme.typography.tabularNums,
+              { color: theme.colors.text.primary, fontWeight: '700', marginTop: 2, fontSize: 18 },
+            ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+          >
+            {activeSegment
+              ? `${Math.round(activeSegment.spent)} / ${Math.round(activeSegment.allocated)} ${currency}`
+              : (centerValue || `0,00 ${currency}`)}
+          </Text>
+        </Pressable>
+      </View>
+    </Pressable>
   );
 };
 
@@ -273,7 +318,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
+  },
+  centerHole: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
   },
   tooltipBubble: {
     position: 'absolute',
