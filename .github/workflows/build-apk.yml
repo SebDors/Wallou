@@ -3,8 +3,8 @@ name: Build & Release Android APK
 on:
   push:
     tags:
-      - 'v*'
-      - 'V*'
+      - 'v*.*.*'
+      - 'V*.*.*'
   workflow_dispatch:
 
 permissions:
