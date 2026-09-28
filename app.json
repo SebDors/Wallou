@@ -7,7 +7,7 @@
     "icon": "./assets/icon.png",
     "scheme": "gestionapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
