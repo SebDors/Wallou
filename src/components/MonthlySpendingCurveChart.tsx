@@ -1,9 +1,11 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
+  PanResponder,
   GestureResponderEvent,
+  PanResponderGestureState,
 } from 'react-native';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
@@ -191,9 +193,8 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
     return `${linePath} L ${last.x.toFixed(1)} ${bottomY} L ${first.x.toFixed(1)} ${bottomY} Z`;
   }, [points, linePath, paddingTop, chartHeight, zeroBaselineY]);
 
-  // Continuous finger scrubbing handlers
-  const updateScrubbingPosition = (event: GestureResponderEvent) => {
-    const locX = event.nativeEvent.locationX;
+  // Continuous finger scrubbing handlers with vertical drift tolerance
+  const updateScrubbingPositionFromX = (locX: number) => {
     const ratio = Math.max(0, Math.min(1, (locX - paddingLeft) / chartWidth));
     const day = Math.max(1, Math.min(daysLimit, Math.round(1 + ratio * (totalDays - 1))));
 
@@ -208,19 +209,36 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
     setSelectedDay(day);
   };
 
-  const handleGrant = (event: GestureResponderEvent) => {
-    onScrubbingChange?.(true);
-    updateScrubbingPosition(event);
-  };
-
-  const handleMove = (event: GestureResponderEvent) => {
-    updateScrubbingPosition(event);
-  };
-
-  const handleRelease = () => {
-    onScrubbingChange?.(false);
-    setScrubbingDay(null);
-  };
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onStartShouldSetPanResponderCapture: () => true,
+        onMoveShouldSetPanResponder: (_, gestureState) => {
+          return Math.abs(gestureState.dx) > 1 || Math.abs(gestureState.dy) > 1;
+        },
+        onMoveShouldSetPanResponderCapture: (_, gestureState) => {
+          return Math.abs(gestureState.dx) > 1 || Math.abs(gestureState.dy) > 1;
+        },
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: (evt) => {
+          onScrubbingChange?.(true);
+          updateScrubbingPositionFromX(evt.nativeEvent.locationX);
+        },
+        onPanResponderMove: (evt) => {
+          updateScrubbingPositionFromX(evt.nativeEvent.locationX);
+        },
+        onPanResponderRelease: () => {
+          onScrubbingChange?.(false);
+          setScrubbingDay(null);
+        },
+        onPanResponderTerminate: () => {
+          onScrubbingChange?.(false);
+          setScrubbingDay(null);
+        },
+      }),
+    [paddingLeft, chartWidth, daysLimit, totalDays, onScrubbingChange]
+  );
 
   // Active day info displayed in header & tooltip
   const activeDay = scrubbingDay ?? selectedDay ?? (isCurrentPeriod ? currentDayIndex : totalDays);
@@ -315,13 +333,7 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
 
       {/* 2. Interactive SVG Curve with Gesture Responder */}
       <View
-        onStartShouldSetResponder={() => true}
-        onMoveShouldSetResponder={() => true}
-        onResponderTerminationRequest={() => false}
-        onResponderGrant={handleGrant}
-        onResponderMove={handleMove}
-        onResponderRelease={handleRelease}
-        onResponderTerminate={handleRelease}
+        {...panResponder.panHandlers}
         style={{ width, height, position: 'relative' }}
       >
         <Svg width={width} height={height} pointerEvents="none">
