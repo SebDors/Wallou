@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Fond ardoise fintech -->
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1A1E27"/>
+      <stop offset="100%" stop-color="#0E121A"/>
+    </linearGradient>
+
+    <!-- Besoins (50%) : Vert Sauge -->
+    <linearGradient id="green-grad" x1="0%" y1="0%" x2="60%" y2="100%">
+      <stop offset="0%" stop-color="#58B27C"/>
+      <stop offset="100%" stop-color="#428E5E"/>
+    </linearGradient>
+
+    <!-- Envies (30%) : Terracotta (Face avant) -->
+    <linearGradient id="orange-front-grad" x1="0%" y1="0%" x2="60%" y2="100%">
+      <stop offset="0%" stop-color="#E8856B"/>
+      <stop offset="100%" stop-color="#D5684E"/>
+    </linearGradient>
+
+    <!-- Envies (30%) : Terracotta (Face arrière repliée / ombre portée) -->
+    <linearGradient id="orange-back-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#C55D42"/>
+      <stop offset="100%" stop-color="#A5432B"/>
+    </linearGradient>
+
+    <!-- Épargne (20%) : Bleu Électrique (Face avant) -->
+    <linearGradient id="blue-front-grad" x1="0%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#7091FF"/>
+      <stop offset="40%" stop-color="#5C7CFA"/>
+      <stop offset="100%" stop-color="#4A6CE2"/>
+    </linearGradient>
+
+    <!-- Épargne (20%) : Bleu Indigo (Biseau d'extrusion latéral) -->
+    <linearGradient id="blue-side-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#405ED6"/>
+      <stop offset="100%" stop-color="#283FA8"/>
+    </linearGradient>
+
+    <!-- Ombres de contact (Plis origami) -->
+    <linearGradient id="shadow-left" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="shadow-right" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Élévation globale du monogramme -->
+    <filter id="logo-shadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- Fond squircle avec bordure ardoise discrète -->
+  <rect width="512" height="512" rx="112" fill="url(#bg-grad)"/>
+
+  <!-- Monogramme Wallou (W dynamique 50/30/20) -->
+  <g id="wallou-w" filter="url(#logo-shadow)">
+
+    <!-- 1. Branche 1 : Besoins 50% (Vert Sauge) -->
+    <polygon points="98,186 156,186 220,354 162,354" fill="url(#green-grad)"/>
+
+    <!-- 2. Branche 3 : Envies 30% - Face arrière repliée (Terracotta sombre) -->
+    <polygon points="226,186 284,186 347,354 289,354" fill="url(#orange-back-grad)"/>
+
+    <!-- Ombre projetée sur la branche verte -->
+    <polygon points="162,354 226,186 200,186 136,354" fill="url(#shadow-left)"/>
+
+    <!-- 3. Branche 2 : Envies 30% - Face avant (Terracotta lumineux) -->
+    <polygon points="226,186 284,186 220,354 162,354" fill="url(#orange-front-grad)"/>
+
+    <!-- Ombre projetée sur la branche terracotta descendante -->
+    <polygon points="289,354 355,178 335,178 269,354" fill="url(#shadow-right)"/>
+
+    <!-- 4. Branche 4 : Épargne 20% - Flèche montante (Face principale bleu électrique) -->
+    <polygon points="324,178 414,118 322,354 289,354 355,178" fill="url(#blue-front-grad)"/>
+
+    <!-- 5. Biseau / Arête 3D latérale de la flèche (Bleu indigo) -->
+    <polygon points="414,118 347,354 322,354" fill="url(#blue-side-grad)"/>
+
+  </g>
+</svg>
