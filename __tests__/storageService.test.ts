@@ -66,6 +66,7 @@ describe('storageService', () => {
       hasCompletedOnboarding: true,
       rolloverMode: 'reset',
       startingLiquidity: 0,
+      startDayOfMonth: 3,
     };
 
     await saveTransactions(transactions);

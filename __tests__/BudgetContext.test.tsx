@@ -84,7 +84,7 @@ describe('BudgetContext', () => {
     expect(capturedContext?.summary.pillars.needs.spent).toBe(0);
   });
 
-  it('loads default August 2026 transactions upon initialization', async () => {
+  it('initializes with clean ledger and default startDayOfMonth', async () => {
     await act(async () => {
       create(
         <BudgetProvider>
@@ -94,11 +94,15 @@ describe('BudgetContext', () => {
     });
 
     expect(capturedContext).not.toBeNull();
-    const augTxs = capturedContext?.transactions.filter((t) => t.date.startsWith('2026-08'));
-    expect(augTxs?.length).toBe(5);
-    expect(augTxs?.map((t) => t.title)).toEqual(
-      expect.arrayContaining(['Salaire', 'Loyer', 'Courses', 'Sorties', 'Épargne'])
-    );
+    expect(capturedContext?.transactions.length).toBe(0);
+    expect(capturedContext?.settings.startDayOfMonth).toBe(1);
+
+    // Update startDayOfMonth
+    await act(async () => {
+      await capturedContext?.updateSettings({ startDayOfMonth: 3 });
+    });
+
+    expect(capturedContext?.settings.startDayOfMonth).toBe(3);
   });
 
   it('validates ratios when updating settings', async () => {
@@ -193,13 +197,53 @@ describe('BudgetContext', () => {
 
     // Test previous_balance: add transactions to previous month (2026-08)
     await act(async () => {
+      await capturedContext?.addTransaction({
+        type: 'income',
+        amount: 2300,
+        category: 'Salaire',
+        title: 'Salaire Août',
+        date: '2026-08-01T10:00:00.000Z',
+      });
+      await capturedContext?.addTransaction({
+        type: 'expense',
+        amount: 375,
+        pillarId: 'needs',
+        category: 'Loyer',
+        title: 'Loyer Août',
+        date: '2026-08-05T10:00:00.000Z',
+      });
+      await capturedContext?.addTransaction({
+        type: 'expense',
+        amount: 210,
+        pillarId: 'needs',
+        category: 'Courses',
+        title: 'Courses Août',
+        date: '2026-08-10T10:00:00.000Z',
+      });
+      await capturedContext?.addTransaction({
+        type: 'expense',
+        amount: 85,
+        pillarId: 'wants',
+        category: 'Sorties',
+        title: 'Sorties Août',
+        date: '2026-08-18T10:00:00.000Z',
+      });
+      await capturedContext?.addTransaction({
+        type: 'expense',
+        amount: 250,
+        pillarId: 'savings',
+        category: 'Épargne',
+        title: 'Épargne Août',
+        date: '2026-08-25T10:00:00.000Z',
+      });
+
       capturedContext?.setPeriodKey('2026-09');
       await capturedContext?.updateSettings({
         rolloverMode: 'previous_balance',
       });
     });
 
-    // August transactions from DEFAULT_TRANSACTIONS:
+    // August transactions:
     // Salaire: 2300
     // Expenses: Loyer (375), Courses (210), Sorties (85), Épargne (250) = 920
     // Previous balance for 2026-08 = 2300 - 920 = 1380

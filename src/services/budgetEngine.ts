@@ -70,6 +70,98 @@ export function calculateAllocations(
   };
 }
 
+import { getDaysInMonth } from './recurrenceService';
+
+const MONTH_ABBR_FR = [
+  'janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin',
+  'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'
+];
+
+/**
+ * Returns the exact start and end Date objects for a budget period key (YYYY-MM) and startDayOfMonth (1-31).
+ */
+export function getPeriodDateBounds(
+  periodKey: string,
+  startDayOfMonth: number = 1
+): { startDate: Date; endDate: Date } {
+  const [yearStr, monthStr] = (periodKey || '').split('-');
+  const year = parseInt(yearStr, 10) || new Date().getFullYear();
+  const month = parseInt(monthStr, 10) || new Date().getMonth() + 1;
+
+  const effectiveStartDay = Math.min(Math.max(1, startDayOfMonth), getDaysInMonth(year, month));
+
+  if (effectiveStartDay <= 1) {
+    const totalDays = getDaysInMonth(year, month);
+    const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+    const endDate = new Date(Date.UTC(year, month - 1, totalDays, 23, 59, 59, 999));
+    return { startDate, endDate };
+  }
+
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+  const effectiveNextStartDay = Math.min(Math.max(1, startDayOfMonth), getDaysInMonth(nextYear, nextMonth));
+
+  const startDate = new Date(Date.UTC(year, month - 1, effectiveStartDay, 0, 0, 0, 0));
+  const nextPeriodStartDate = new Date(Date.UTC(nextYear, nextMonth - 1, effectiveNextStartDay, 0, 0, 0, 0));
+  const endDate = new Date(nextPeriodStartDate.getTime() - 1);
+
+  return { startDate, endDate };
+}
+
+/**
+ * Checks if a transaction date string belongs to the specified periodKey with startDayOfMonth.
+ */
+export function isDateInPeriod(
+  dateIsoOrStr: string,
+  periodKey: string,
+  startDayOfMonth: number = 1
+): boolean {
+  if (!dateIsoOrStr) return false;
+  if (startDayOfMonth <= 1) {
+    return dateIsoOrStr.slice(0, 7) === periodKey;
+  }
+  const tTime = new Date(dateIsoOrStr).getTime();
+  if (isNaN(tTime)) return false;
+
+  const { startDate, endDate } = getPeriodDateBounds(periodKey, startDayOfMonth);
+  return tTime >= startDate.getTime() && tTime <= endDate.getTime();
+}
+
+/**
+ * Returns a human-readable sub-label for the period date range (e.g. "3 sept. - 2 oct.").
+ */
+export function formatPeriodSubLabel(
+  periodKey: string,
+  startDayOfMonth: number = 1
+): string {
+  const { startDate, endDate } = getPeriodDateBounds(periodKey, startDayOfMonth);
+  const startD = startDate.getUTCDate();
+  const startM = MONTH_ABBR_FR[startDate.getUTCMonth()];
+  const endD = endDate.getUTCDate();
+  const endM = MONTH_ABBR_FR[endDate.getUTCMonth()];
+
+  return `${startD} ${startM} - ${endD} ${endM}`;
+}
+
+/**
+ * Returns the current periodKey for a given date according to startDayOfMonth.
+ */
+export function getCurrentPeriodKeyForDay(
+  startDayOfMonth: number = 1,
+  currentDate: Date = new Date()
+): string {
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth() + 1;
+  const day = currentDate.getDate();
+
+  if (startDayOfMonth <= 1 || day >= startDayOfMonth) {
+    return `${year}-${String(month).padStart(2, '0')}`;
+  }
+
+  const prevDate = new Date(year, month - 2, 1);
+  return `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+}
+
 /**
  * Calculates real-time period summary for a given year-month key (YYYY-MM).
  * Pure function: deterministic, instantaneous (< 1ms).
@@ -78,10 +170,11 @@ export function calculateBudgetPeriodSummary(
   transactions: Transaction[],
   ratios: BudgetRatios,
   periodKey: string,
-  startingBalance: number = 0
+  startingBalance: number = 0,
+  startDayOfMonth: number = 1
 ): BudgetPeriodSummary {
   const periodTransactions = transactions.filter(
-    (t) => t.date && t.date.slice(0, 7) === periodKey
+    (t) => t.date && isDateInPeriod(t.date, periodKey, startDayOfMonth)
   );
 
   let totalIncome = 0;

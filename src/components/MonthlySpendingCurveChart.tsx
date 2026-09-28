@@ -9,7 +9,7 @@ import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop } from 'react-nativ
 import * as Haptics from 'expo-haptics';
 import { Transaction } from '../types/budget';
 import { useTheme } from '../context/ThemeContext';
-import { formatCurrency } from '../services/budgetEngine';
+import { formatCurrency, getPeriodDateBounds } from '../services/budgetEngine';
 
 const MONTH_NAMES_FR = [
   'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
@@ -24,6 +24,7 @@ export interface MonthlySpendingCurveChartProps {
   width?: number;
   height?: number;
   startingBalance?: number;
+  startDayOfMonth?: number;
   onScrubbingChange?: (isScrubbing: boolean) => void;
 }
 
@@ -35,40 +36,59 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
   width = 330,
   height = 220,
   startingBalance = 0,
+  startDayOfMonth = 1,
   onScrubbingChange,
 }) => {
   const { theme } = useTheme();
 
-  // Parsing period
-  const [yearStr, monthStr] = periodKey.split('-');
-  const year = parseInt(yearStr, 10) || new Date().getFullYear();
-  const month = parseInt(monthStr, 10) || new Date().getMonth() + 1;
-  const totalDays = new Date(year, month, 0).getDate();
+  // Date range bounds for the period
+  const { startDate, endDate } = useMemo(
+    () => getPeriodDateBounds(periodKey, startDayOfMonth),
+    [periodKey, startDayOfMonth]
+  );
+
+  const totalDays = useMemo(() => {
+    const diffMs = endDate.getTime() - startDate.getTime();
+    return Math.max(1, Math.round(diffMs / (24 * 3600 * 1000)) + 1);
+  }, [startDate, endDate]);
 
   const now = new Date();
-  const isCurrentMonth = now.getFullYear() === year && now.getMonth() + 1 === month;
-  const currentDay = isCurrentMonth ? Math.min(now.getDate(), totalDays) : totalDays;
-  const daysLimit = isCurrentMonth ? currentDay : totalDays;
+  const nowTime = now.getTime();
+  const isCurrentPeriod = nowTime >= startDate.getTime() && nowTime <= endDate.getTime();
+  
+  const currentDayIndex = useMemo(() => {
+    if (!isCurrentPeriod) {
+      return nowTime < startDate.getTime() ? 1 : totalDays;
+    }
+    const diffDays = Math.floor((nowTime - startDate.getTime()) / (24 * 3600 * 1000)) + 1;
+    return Math.max(1, Math.min(diffDays, totalDays));
+  }, [isCurrentPeriod, nowTime, startDate, totalDays]);
+
+  const daysLimit = isCurrentPeriod ? currentDayIndex : totalDays;
 
   // Scrubbing & selection state
   const [scrubbingDay, setScrubbingDay] = useState<number | null>(null);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const lastHapticDay = useRef<number | null>(null);
 
-  // Compute daily transactions and running net balance:
-  // Starts with initial startingBalance (rollover or fixed liquidity) + income at beginning of month,
-  // decreases with expenses, increases with new incomes/refunds
-  const { balanceByDay, dayTransactionsMap, latestBalance } = useMemo(() => {
+  // Compute daily transactions and running net balance
+  const { balanceByDay, dayTransactionsMap, latestBalance, dateByDay } = useMemo(() => {
     const txByDay: Record<number, Transaction[]> = {};
+    const datesMap: Record<number, Date> = {};
+
     for (let d = 1; d <= totalDays; d++) {
       txByDay[d] = [];
+      datesMap[d] = new Date(startDate.getTime() + (d - 1) * 24 * 3600 * 1000);
     }
 
     for (const t of transactions) {
-      if (!t.date || t.date.slice(0, 7) !== periodKey) continue;
-      const day = new Date(t.date).getDate();
-      if (day >= 1 && day <= totalDays) {
-        txByDay[day].push(t);
+      if (!t.date) continue;
+      const tTime = new Date(t.date).getTime();
+      if (tTime >= startDate.getTime() && tTime <= endDate.getTime()) {
+        const dayIdx = Math.floor((tTime - startDate.getTime()) / (24 * 3600 * 1000)) + 1;
+        if (dayIdx >= 1 && dayIdx <= totalDays) {
+          txByDay[dayIdx].push(t);
+        }
       }
     }
 
@@ -96,9 +116,10 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
     return {
       balanceByDay: balances,
       dayTransactionsMap: txByDay,
+      dateByDay: datesMap,
       latestBalance: balances[daysLimit] ?? 0,
     };
-  }, [transactions, periodKey, totalDays, daysLimit, startingBalance]);
+  }, [transactions, startDate, endDate, totalDays, daysLimit, startingBalance]);
 
   // Chart layout geometry
   const paddingLeft = 14;
@@ -170,7 +191,7 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
     return `${linePath} L ${last.x.toFixed(1)} ${bottomY} L ${first.x.toFixed(1)} ${bottomY} Z`;
   }, [points, linePath, paddingTop, chartHeight, zeroBaselineY]);
 
-  // Trade Republic continuous finger scrubbing handlers
+  // Continuous finger scrubbing handlers
   const updateScrubbingPosition = (event: GestureResponderEvent) => {
     const locX = event.nativeEvent.locationX;
     const ratio = Math.max(0, Math.min(1, (locX - paddingLeft) / chartWidth));
@@ -202,16 +223,18 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
   };
 
   // Active day info displayed in header & tooltip
-  const activeDay = scrubbingDay ?? selectedDay ?? (isCurrentMonth ? currentDay : totalDays);
+  const activeDay = scrubbingDay ?? selectedDay ?? (isCurrentPeriod ? currentDayIndex : totalDays);
   const activePoint = points.find((p) => p.day === activeDay) || points[points.length - 1] || null;
   const activeBalance = activePoint ? activePoint.balance : latestBalance;
 
   // Format date & operations for active day
   const formattedDate = useMemo(() => {
-    const monthName = MONTH_NAMES_FR[month - 1] || '';
-    if (activeDay === 1) return `1er ${monthName}`;
-    return `${activeDay} ${monthName}`;
-  }, [activeDay, month]);
+    const dObj = dateByDay[activeDay] || new Date();
+    const dayNum = dObj.getDate();
+    const monthName = MONTH_NAMES_FR[dObj.getMonth()] || '';
+    if (dayNum === 1) return `1er ${monthName}`;
+    return `${dayNum} ${monthName}`;
+  }, [activeDay, dateByDay]);
 
   const operationsSummary = useMemo(() => {
     const txs = dayTransactionsMap[activeDay] || [];
@@ -236,7 +259,7 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
 
   return (
     <View style={[styles.container, { width }]}>
-      {/* 1. Trade Republic Interactive Header */}
+      {/* 1. Interactive Header */}
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
           <Text

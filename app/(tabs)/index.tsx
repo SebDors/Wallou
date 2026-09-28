@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -21,7 +21,9 @@ import {
   Info,
   CalendarClock,
   CheckCircle2,
+  PieChart,
 } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useBudget } from '../../src/context/BudgetContext';
 import { useDialog } from '../../src/context/DialogContext';
@@ -32,7 +34,11 @@ import { PillarGauge } from '../../src/components/PillarGauge';
 import { Card } from '../../src/components/Card';
 import { TransactionDetailModal } from '../../src/components/TransactionDetailModal';
 import { MonthlyOverviewModal } from '../../src/components/MonthlyOverviewModal';
-import { formatCurrency } from '../../src/services/budgetEngine';
+import {
+  formatCurrency,
+  getPeriodDateBounds,
+  formatPeriodSubLabel,
+} from '../../src/services/budgetEngine';
 import { PillarId, Transaction } from '../../src/types/budget';
 
 export default function DashboardScreen() {
@@ -54,11 +60,12 @@ export default function DashboardScreen() {
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [showMonthlyOverview, setShowMonthlyOverview] = useState(false);
 
-  const [activeChartSlide, setActiveChartSlide] = useState(0);
-  const chartScrollRef = React.useRef<ScrollView>(null);
+  // Tabbed chart state: 'donut' (Répartition 50/30/20) or 'curve' (Évolution du solde)
+  const [activeChartTab, setActiveChartTab] = useState<'donut' | 'curve'>('donut');
   const [carouselWidth, setCarouselWidth] = useState(0);
 
   const currency = settings?.currency || '€';
+  const startDayOfMonth = settings?.startDayOfMonth || 1;
 
   // Period parsing & month navigation
   const [yearStr, monthStr] = currentPeriodKey.split('-');
@@ -83,13 +90,25 @@ export default function DashboardScreen() {
     year: 'numeric',
   });
   const formattedPeriod = monthNameRaw.charAt(0).toUpperCase() + monthNameRaw.slice(1);
+  const periodSubLabel = formatPeriodSubLabel(currentPeriodKey, startDayOfMonth);
 
   // Cycle status calculation
-  const totalDaysInMonth = new Date(year, month, 0).getDate();
+  const { startDate, endDate } = useMemo(
+    () => getPeriodDateBounds(currentPeriodKey, startDayOfMonth),
+    [currentPeriodKey, startDayOfMonth]
+  );
+  const totalDaysInCycle = useMemo(() => {
+    const diffMs = endDate.getTime() - startDate.getTime();
+    return Math.max(1, Math.round(diffMs / (24 * 3600 * 1000)) + 1);
+  }, [startDate, endDate]);
+
   const now = new Date();
-  const isCurrentMonth = now.getFullYear() === year && now.getMonth() + 1 === month;
-  const currentDay = isCurrentMonth ? now.getDate() : totalDaysInMonth;
-  const daysLeft = Math.max(1, totalDaysInMonth - currentDay + 1);
+  const nowTime = now.getTime();
+  const isCurrentCycle = nowTime >= startDate.getTime() && nowTime <= endDate.getTime();
+  const currentDayInCycle = isCurrentCycle
+    ? Math.max(1, Math.min(totalDaysInCycle, Math.floor((nowTime - startDate.getTime()) / (24 * 3600 * 1000)) + 1))
+    : totalDaysInCycle;
+  const daysLeft = isCurrentCycle ? Math.max(1, totalDaysInCycle - currentDayInCycle + 1) : 1;
   const dailyAllowance = Math.max(0, summary.resteAVivre / daysLeft);
 
   const [isScrubbingChart, setIsScrubbingChart] = useState(false);
@@ -108,8 +127,8 @@ export default function DashboardScreen() {
     if (recurring && recurring.length > 0) {
       for (const item of recurring) {
         if (!item.isActive || item.type !== 'expense') continue;
-        const dueDay = Math.min(item.dayOfMonth, totalDaysInMonth);
-        if (isCurrentMonth ? dueDay >= currentDay : true) {
+        const dueDay = Math.min(item.dayOfMonth, totalDaysInCycle);
+        if (isCurrentCycle ? dueDay >= currentDayInCycle : true) {
           const alreadyExecuted = summary.transactions.some(
             (tx) => tx.recurringId === item.id
           );
@@ -125,18 +144,19 @@ export default function DashboardScreen() {
       }
     }
 
-    // 2. Also check planned/future expense transactions in this month
+    // 2. Also check planned/future expense transactions in this cycle
     for (const tx of summary.transactions) {
       if (tx.type !== 'expense' || !tx.date) continue;
-      const txDay = new Date(tx.date).getDate();
-      if (isCurrentMonth && txDay > currentDay) {
-        const alreadyIn = candidates.some((c) => c.title === tx.title && c.day === txDay);
+      const txTime = new Date(tx.date).getTime();
+      const txDayInCycle = Math.floor((txTime - startDate.getTime()) / (24 * 3600 * 1000)) + 1;
+      if (isCurrentCycle && txDayInCycle > currentDayInCycle) {
+        const alreadyIn = candidates.some((c) => c.title === tx.title && c.day === txDayInCycle);
         if (!alreadyIn) {
           const netAmt = tx.refundedAmount ? Math.max(0, tx.amount - tx.refundedAmount) : tx.amount;
           candidates.push({
             title: tx.title || tx.category,
             amount: netAmt,
-            day: txDay,
+            day: txDayInCycle,
             category: tx.category,
           });
         }
@@ -148,16 +168,16 @@ export default function DashboardScreen() {
     candidates.sort((a, b) => a.day - b.day);
     const nextItem = candidates[0];
 
-    const diff = nextItem.day - currentDay;
+    const diff = nextItem.day - currentDayInCycle;
     let relativeLabel: string;
     if (diff === 0) {
-      relativeLabel = `Aujourd'hui - ${String(nextItem.day).padStart(2, '0')}/${monthStr}`;
+      relativeLabel = `Aujourd'hui - Jour ${nextItem.day}`;
     } else if (diff === 1) {
-      relativeLabel = `Demain - ${String(nextItem.day).padStart(2, '0')}/${monthStr}`;
+      relativeLabel = `Demain - Jour ${nextItem.day}`;
     } else if (diff > 1) {
-      relativeLabel = `Dans ${diff} jours - ${String(nextItem.day).padStart(2, '0')}/${monthStr}`;
+      relativeLabel = `Dans ${diff} jours`;
     } else {
-      relativeLabel = `${String(nextItem.day).padStart(2, '0')}/${monthStr}`;
+      relativeLabel = `Jour ${nextItem.day}`;
     }
 
     return {
@@ -165,7 +185,7 @@ export default function DashboardScreen() {
       relativeLabel,
       resteAfter: summary.resteAVivre - nextItem.amount,
     };
-  }, [recurring, summary.transactions, summary.resteAVivre, isCurrentMonth, currentDay, totalDaysInMonth, monthStr]);
+  }, [recurring, summary.transactions, summary.resteAVivre, isCurrentCycle, currentDayInCycle, totalDaysInCycle, startDate]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -227,14 +247,24 @@ export default function DashboardScreen() {
             <ChevronLeft size={18} color={theme.colors.text.primary} />
           </Pressable>
 
-          <Text
-            style={[
-              theme.typography.title2,
-              { color: theme.colors.text.primary, marginHorizontal: theme.spacing.sm },
-            ]}
-          >
-            {formattedPeriod}
-          </Text>
+          <View style={{ alignItems: 'center', marginHorizontal: theme.spacing.sm }}>
+            <Text
+              style={[
+                theme.typography.title2,
+                { color: theme.colors.text.primary },
+              ]}
+            >
+              {formattedPeriod}
+            </Text>
+            <Text
+              style={[
+                theme.typography.caption,
+                { color: theme.colors.text.secondary, fontSize: 11, marginTop: 1 },
+              ]}
+            >
+              {periodSubLabel}
+            </Text>
+          </View>
 
           <Pressable
             onPress={handleNextMonth}
@@ -268,7 +298,7 @@ export default function DashboardScreen() {
                 { color: theme.colors.text.secondary, fontWeight: '600' },
               ]}
             >
-              {isCurrentMonth ? `Jour ${currentDay}/${totalDaysInMonth}` : 'Mois clos'}
+              {isCurrentCycle ? `Jour ${currentDayInCycle}/${totalDaysInCycle}` : 'Cycle clos'}
             </Text>
           </View>
 
@@ -616,7 +646,7 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* 3. Charts Carousel Section (Donut Chart & Monthly Evolution Curve) */}
+      {/* 3. Charts Tabbed Section (Donut Chart & Monthly Evolution Curve) */}
       <View
         style={[styles.chartSection, { marginVertical: theme.spacing.md }]}
         onLayout={(e) => {
@@ -624,22 +654,110 @@ export default function DashboardScreen() {
           if (w > 0) setCarouselWidth(w);
         }}
       >
-        <ScrollView
-          ref={chartScrollRef}
-          horizontal
-          pagingEnabled
-          scrollEnabled={!isScrubbingChart}
-          showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={(e) => {
-            const offsetX = e.nativeEvent.contentOffset.x;
-            const w = carouselWidth || 340;
-            const newIndex = Math.round(offsetX / w);
-            setActiveChartSlide(newIndex);
-          }}
-          style={{ width: '100%' }}
-        >
-          {/* Slide 1: Donut Chart + 3 Pillar Legends */}
-          <View style={{ width: carouselWidth || 340, alignItems: 'center' }}>
+        {/* Segmented Control Selector */}
+        <View style={styles.chartTabContainer}>
+          <View
+            style={[
+              styles.chartTabPill,
+              {
+                backgroundColor: theme.colors.bg.surfaceSubtle,
+                borderRadius: theme.radii.full,
+              },
+            ]}
+          >
+            <Pressable
+              onPress={() => {
+                try {
+                  Haptics.selectionAsync();
+                } catch {}
+                setActiveChartTab('donut');
+              }}
+              style={[
+                styles.chartTabBtn,
+                activeChartTab === 'donut' && {
+                  backgroundColor: theme.colors.bg.surface,
+                  borderRadius: theme.radii.full,
+                  shadowColor: '#000',
+                  shadowOpacity: 0.08,
+                  shadowRadius: 2,
+                  elevation: 2,
+                },
+              ]}
+            >
+              <PieChart
+                size={14}
+                color={
+                  activeChartTab === 'donut'
+                    ? theme.colors.pillar.savings
+                    : theme.colors.text.muted
+                }
+                style={{ marginRight: 6 }}
+              />
+              <Text
+                style={[
+                  theme.typography.caption,
+                  {
+                    color:
+                      activeChartTab === 'donut'
+                        ? theme.colors.text.primary
+                        : theme.colors.text.muted,
+                    fontWeight: activeChartTab === 'donut' ? '700' : '500',
+                  },
+                ]}
+              >
+                Répartition (50/30/20)
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                try {
+                  Haptics.selectionAsync();
+                } catch {}
+                setActiveChartTab('curve');
+              }}
+              style={[
+                styles.chartTabBtn,
+                activeChartTab === 'curve' && {
+                  backgroundColor: theme.colors.bg.surface,
+                  borderRadius: theme.radii.full,
+                  shadowColor: '#000',
+                  shadowOpacity: 0.08,
+                  shadowRadius: 2,
+                  elevation: 2,
+                },
+              ]}
+            >
+              <TrendingUp
+                size={14}
+                color={
+                  activeChartTab === 'curve'
+                    ? theme.colors.pillar.savings
+                    : theme.colors.text.muted
+                }
+                style={{ marginRight: 6 }}
+              />
+              <Text
+                style={[
+                  theme.typography.caption,
+                  {
+                    color:
+                      activeChartTab === 'curve'
+                        ? theme.colors.text.primary
+                        : theme.colors.text.muted,
+                    fontWeight: activeChartTab === 'curve' ? '700' : '500',
+                  },
+                ]}
+              >
+                Évolution du solde
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {activeChartTab === 'donut' ? (
+          /* View 1: Donut Chart + 3 Pillar Legends */
+          <View style={{ width: '100%', alignItems: 'center' }}>
             <DonutChart
               needsSpent={summary.pillars.needs.spent}
               wantsSpent={summary.pillars.wants.spent}
@@ -722,79 +840,22 @@ export default function DashboardScreen() {
               </View>
             </View>
           </View>
-
-          {/* Slide 2: Monthly Spending Curve Chart */}
-          <View style={{ width: carouselWidth || 340, alignItems: 'center' }}>
+        ) : (
+          /* View 2: Monthly Spending Curve Chart */
+          <View style={{ width: '100%', alignItems: 'center' }}>
             <MonthlySpendingCurveChart
               transactions={summary.transactions}
               totalIncome={summary.totalIncome}
               periodKey={currentPeriodKey}
               currency={currency}
               startingBalance={summary.startingBalance}
+              startDayOfMonth={startDayOfMonth}
               width={carouselWidth || 340}
               height={220}
               onScrubbingChange={setIsScrubbingChart}
             />
           </View>
-        </ScrollView>
-
-        {/* Carousel Navigation: Arrows & Pagination Dots */}
-        <View style={styles.carouselNavRow}>
-          <Pressable
-            onPress={() => {
-              chartScrollRef.current?.scrollTo({ x: 0, animated: true });
-              setActiveChartSlide(0);
-            }}
-            hitSlop={10}
-            style={[
-              styles.carouselArrowBtn,
-              { opacity: activeChartSlide === 0 ? 0.35 : 1 },
-            ]}
-          >
-            <ChevronLeft size={18} color={theme.colors.text.secondary} />
-          </Pressable>
-
-          <View style={styles.carouselDotsRow}>
-            <Pressable
-              onPress={() => {
-                chartScrollRef.current?.scrollTo({ x: 0, animated: true });
-                setActiveChartSlide(0);
-              }}
-              style={[
-                styles.carouselDot,
-                activeChartSlide === 0
-                  ? [styles.carouselDotActive, { backgroundColor: theme.colors.pillar.savings }]
-                  : { backgroundColor: theme.colors.border.subtle },
-              ]}
-            />
-            <Pressable
-              onPress={() => {
-                chartScrollRef.current?.scrollTo({ x: carouselWidth || 340, animated: true });
-                setActiveChartSlide(1);
-              }}
-              style={[
-                styles.carouselDot,
-                activeChartSlide === 1
-                  ? [styles.carouselDotActive, { backgroundColor: theme.colors.pillar.savings }]
-                  : { backgroundColor: theme.colors.border.subtle },
-              ]}
-            />
-          </View>
-
-          <Pressable
-            onPress={() => {
-              chartScrollRef.current?.scrollTo({ x: carouselWidth || 340, animated: true });
-              setActiveChartSlide(1);
-            }}
-            hitSlop={10}
-            style={[
-              styles.carouselArrowBtn,
-              { opacity: activeChartSlide === 1 ? 0.35 : 1 },
-            ]}
-          >
-            <ChevronRight size={18} color={theme.colors.text.secondary} />
-          </Pressable>
-        </View>
+        )}
       </View>
 
       {/* 4. 3 Pillar Progress Gauges */}
@@ -1074,33 +1135,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
   },
-  carouselNavRow: {
+  chartTabContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  chartTabPill: {
+    flexDirection: 'row',
+    padding: 3,
+  },
+  chartTabBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-    marginTop: 10,
-  },
-  carouselArrowBtn: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  carouselDotsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  carouselDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  carouselDotActive: {
-    width: 18,
-    height: 6,
-    borderRadius: 3,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
   },
   legendRow: {
     flexDirection: 'row',

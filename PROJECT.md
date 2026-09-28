@@ -7,7 +7,7 @@
   - In-memory Master State (React Context) provides synchronous, 0ms input updates.
   - Asynchronous write-behind persistence queue to `@react-native-async-storage/async-storage` ensures 0 frame drops.
   - Hermetic JSON Export/Import provides full offline data sovereignty.
-- **Visual Design**: "Trade Republic Warm" design system (Slate canvas, Sage, Terracotta, Indigo Blue accents, 1px card borders, tabular numerals, Dark/Light modes).
+- **Visual Design**: Wallou Warm design system (Slate canvas, Sage, Terracotta, Indigo Blue accents, 1px card borders, tabular numerals, Dark/Light modes).
 - **Git & CI/CD**: Branch `main`, conventional atomic commits, GitHub Actions APK compilation workflow, GitHub releases update service.
 
 ## Feature Inventory
@@ -31,7 +31,7 @@
 | 16 | Hermetic JSON Validation | Multi-phase defensive validation & sanitization before restore | M2 | Survey / R3 |
 | 17 | Atomic Database Restore | Atomic write across all collections using multiSet | M2 | Survey / R3 |
 | 18 | Currency Display Formatter | Formats amounts with symbol, space and thousand separators | M2 | Survey / R2 |
-| 19 | Theme Tokens System | "Trade Republic Warm" palette (Dark & Light tokens, Slate, Sage, Terracotta, Indigo) | M3 | Survey / R1, R4 |
+| 19 | Theme Tokens System | Wallou Warm palette (Dark & Light tokens, Slate, Sage, Terracotta, Indigo) | M3 | Survey / R1, R4 |
 | 20 | ThemeContext & Persistence | Global React context providing current theme and toggle, persisted in storage | M3 | Survey / R1 |
 | 21 | Expo Router Tab Bar | Custom 5-item bottom bar (Dashboard, Transactions, [+] Quick Entry, Recurrences, Settings) | M3 | Survey / R4 |
 | 22 | Dashboard: Reste à Vivre Hero | Prominent real-time display of disposable income (34px tabular-nums) | M3 | Survey / R4 |
