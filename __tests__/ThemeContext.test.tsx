@@ -21,7 +21,7 @@ describe('ThemeContext & Tokens', () => {
     jest.clearAllMocks();
   });
 
-  it('exposes accurate Trade Republic Warm design tokens', () => {
+  it('exposes accurate Wallou Warm design tokens', () => {
     expect(darkTheme.colors.bg.canvas).toBe('#0E121A');
     expect(darkTheme.colors.bg.surface).toBe('#161B26');
     expect(darkTheme.colors.pillar.needs).toBe('#4E9F6E');

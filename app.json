@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "GestionApp",
-    "slug": "gestion-app",
-    "version": "1.0.0",
+    "name": "Wallou",
+    "slug": "wallou",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "gestionapp",
+    "scheme": "wallou",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
     "splash": {
@@ -21,7 +21,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#121417"
       },
-      "package": "com.gestionapp.app",
+      "package": "com.wallou.app",
       "softwareKeyboardLayoutMode": "pan"
     },
     "web": {

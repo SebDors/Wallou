@@ -4,7 +4,7 @@
 
 The user requested: "Je souhaite néanmoins que tu créés des agents qui vont s'occuper des parties clés comme un orchestrateur, un developpeur (ou deux un pour front et un back), un testeur ainsi qu'un agent git pour scinder les tâches. L'orchestrateur c'est toi qui gère et délègues les agents et qui a la connaissance de tout le projet. Pour chaque modification tu peux faire un commit. Je souhaite que la branche principale soit la branche main, je n'ai pas encore de repos remote, je vais lre créer. Je n'ai pas encore généré le git avec git init, donc fais le. Tu as carte blanche et dis moi quand je peux le tester, ne lance pas npm start, je le ferais moi."
 
-Application mobile React Native / Expo (Local-First) de gestion budgétaire personnelle basée sur la règle 50/30/20 (Besoins 50%, Envies 30%, Épargne 20%), avec saisie ultra-rapide sans friction, design épuré type Trade Republic aux teintes chaleureuses, et zéro dépendance cloud.
+Application mobile React Native / Expo (Local-First) de gestion budgétaire personnelle basée sur la règle 50/30/20 (Besoins 50%, Envies 30%, Épargne 20%), avec saisie ultra-rapide sans friction, design épuré Wallou aux teintes chaleureuses, et zéro dépendance cloud.
 
 Working directory: c:\Users\AY030031\Documents\GestionApp
 Integrity mode: development
@@ -34,7 +34,7 @@ Integrity mode: development
 - Saisie des montants instantanée : découplage strict entre le state local de saisie et la persistance disque pour garantir 0ms de latence.
 - Module de sauvegarde manuelle : export JSON complet et restauration / import JSON sans altération.
 
-### R4. Interface & Ergonomie "Trade Republic Warm"
+### R4. Interface & Ergonomie "Wallou Warm"
 - 4 onglets principaux :
   1. Dashboard : Donut chart 50/30/20, cartes piliers avec jauges de progression, solde & reste à vivre, dernières transactions.
   2. Transactions : Historique chronologique, filtres rapides par pilier (50%, 30%, 20%), recherche.

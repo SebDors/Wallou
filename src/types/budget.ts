@@ -67,6 +67,7 @@ export interface UserSettings {
   customCategories?: string[];   // user-defined categories
   rolloverMode?: RolloverMode;   // default 'reset'
   startingLiquidity?: number;    // default 0
+  startDayOfMonth?: number;      // 1 to 31, default 1 (first day of billing cycle)
 }
 
 // ==========================================

@@ -37,7 +37,7 @@ import { useTheme } from '../../src/context/ThemeContext';
 import { useBudget } from '../../src/context/BudgetContext';
 import { useDialog } from '../../src/context/DialogContext';
 import { Card } from '../../src/components/Card';
-import { validateRatios } from '../../src/services/budgetEngine';
+import { formatPeriodSubLabel, validateRatios } from '../../src/services/budgetEngine';
 import { validateAndSanitizeBackup } from '../../src/services/exportImportService';
 import { checkForUpdate, openDownloadPage } from '../../src/services/updateService';
 import { BudgetRatios, RolloverMode } from '../../src/types/budget';
@@ -62,6 +62,7 @@ export default function SettingsScreen() {
     exportData,
     importData,
     resetAllData,
+    currentPeriodKey,
   } = useBudget();
   const { showSuccess, showError, showConfirm, showDialog } = useDialog();
 
@@ -93,6 +94,11 @@ export default function SettingsScreen() {
     String(settings?.startingLiquidity ?? 0)
   );
 
+  // Start Day of Month State
+  const [startDayInput, setStartDayInput] = useState<string>(
+    String(settings?.startDayOfMonth ?? 1)
+  );
+
   // Sync settings when loaded
   useEffect(() => {
     if (settings) {
@@ -107,8 +113,11 @@ export default function SettingsScreen() {
       if (settings.startingLiquidity !== undefined) {
         setStartingLiquidityInput(String(settings.startingLiquidity));
       }
+      if (settings.startDayOfMonth !== undefined) {
+        setStartDayInput(String(settings.startDayOfMonth));
+      }
     }
-  }, [settings?.ratios, settings?.rolloverMode, settings?.startingLiquidity]);
+  }, [settings?.ratios, settings?.rolloverMode, settings?.startingLiquidity, settings?.startDayOfMonth]);
 
   const handleSelectRolloverMode = async (mode: RolloverMode) => {
     setRolloverMode(mode);
@@ -131,6 +140,23 @@ export default function SettingsScreen() {
     showSuccess(
       'Liquidité enregistrée',
       `La liquidité mensuelle initiale est fixée à ${parsed} ${settings?.currency || '€'}.`
+    );
+  };
+
+  const handleSaveStartDay = async (targetDay?: number) => {
+    const valToSave = targetDay !== undefined ? targetDay : parseInt(startDayInput, 10);
+    if (isNaN(valToSave) || valToSave < 1 || valToSave > 31) {
+      showError('Jour invalide', 'Veuillez saisir un jour compris entre 1 et 31.');
+      return;
+    }
+    setStartDayInput(String(valToSave));
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {}
+    await updateSettings({ startDayOfMonth: valToSave });
+    showSuccess(
+      'Cycle budgétaire mis à jour',
+      `Le cycle mensuel débutera le ${valToSave} de chaque mois.`
     );
   };
 
@@ -296,7 +322,7 @@ export default function SettingsScreen() {
   const handleCheckUpdate = async () => {
     setIsCheckingUpdate(true);
     try {
-      const release = await checkForUpdate('1.0.0');
+      const release = await checkForUpdate('1.0.1');
       if (release.isAvailable && release.downloadUrl) {
         showDialog({
           title: 'Mise à jour disponible !',
@@ -314,13 +340,13 @@ export default function SettingsScreen() {
       } else {
         showSuccess(
           'À jour',
-          'Vous utilisez déjà la dernière version de Wallou (1.0.0).'
+          'Vous utilisez déjà la dernière version de Wallou (1.0.1).'
         );
       }
     } catch {
       showSuccess(
         'Information',
-        'Wallou est à jour (Version 1.0.0).'
+        'Wallou est à jour (Version 1.0.1).'
       );
     } finally {
       setIsCheckingUpdate(false);
@@ -660,7 +686,104 @@ export default function SettingsScreen() {
         </Pressable>
       </Card>
 
-      {/* 4. Changement de mois & Liquidité */}
+      {/* 4. Cycle Budgétaire Mensuel (Jour de départ) */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.text.secondary, marginTop: 16 }]}>
+        Cycle budgétaire mensuel
+      </Text>
+      <Card style={styles.cardSection}>
+        <Text style={[theme.typography.caption, { color: theme.colors.text.secondary, marginBottom: 10 }]}>
+          Choisissez le jour de début de vos mois budgétaires (ex: le 1er ou le jour de versement du salaire).
+        </Text>
+
+        {/* Quick Presets */}
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+          {[1, 3, 25, 28].map((dayPreset) => {
+            const isCur = (settings?.startDayOfMonth || 1) === dayPreset;
+            return (
+              <Pressable
+                key={dayPreset}
+                onPress={() => handleSaveStartDay(dayPreset)}
+                style={[
+                  styles.currencyBtn,
+                  {
+                    flex: 1,
+                    borderColor: isCur ? theme.colors.pillar.savings : theme.colors.border.subtle,
+                    backgroundColor: isCur ? theme.colors.pillar.savings : theme.colors.bg.surfaceSubtle,
+                    borderRadius: theme.radii.md,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    theme.typography.caption,
+                    {
+                      color: isCur ? '#FFFFFF' : theme.colors.text.primary,
+                      fontWeight: isCur ? '700' : '600',
+                    },
+                  ]}
+                >
+                  {dayPreset === 1 ? '1er' : `${dayPreset}`}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Custom Day Input */}
+        <View style={styles.startingLiquidityInputRow}>
+          <TextInput
+            value={startDayInput}
+            onChangeText={setStartDayInput}
+            keyboardType="number-pad"
+            maxLength={2}
+            placeholder="1"
+            placeholderTextColor={theme.colors.text.muted}
+            style={[
+              styles.startingLiquidityInput,
+              {
+                backgroundColor: theme.colors.bg.surfaceSubtle,
+                borderColor: theme.colors.border.subtle,
+                color: theme.colors.text.primary,
+                borderRadius: theme.radii.md,
+              },
+            ]}
+          />
+          <Pressable
+            onPress={() => handleSaveStartDay()}
+            style={({ pressed }) => [
+              styles.saveLiquidityBtn,
+              {
+                backgroundColor: theme.colors.pillar.savings,
+                borderRadius: theme.radii.md,
+                opacity: pressed ? 0.8 : 1,
+              },
+            ]}
+          >
+            <Text style={[theme.typography.body, { color: '#FFFFFF', fontWeight: '700' }]}>
+              Enregistrer
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* Dynamic Period Example */}
+        <View
+          style={{
+            backgroundColor: theme.colors.bg.surfaceSubtle,
+            padding: 10,
+            borderRadius: theme.radii.md,
+            marginTop: 10,
+          }}
+        >
+          <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
+            📅 Période actuelle :{' '}
+            <Text style={{ color: theme.colors.text.primary, fontWeight: '700' }}>
+              du {formatPeriodSubLabel(currentPeriodKey, settings?.startDayOfMonth || 1)}
+            </Text>
+          </Text>
+        </View>
+      </Card>
+
+      {/* 5. Changement de mois & Liquidité */}
       <Text style={[styles.sectionTitle, { color: theme.colors.text.secondary, marginTop: 16 }]}>
         Changement de mois & Liquidité
       </Text>

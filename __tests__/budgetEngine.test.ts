@@ -2,6 +2,10 @@ import {
   calculateAllocations,
   calculateBudgetPeriodSummary,
   formatCurrency,
+  formatPeriodSubLabel,
+  getCurrentPeriodKeyForDay,
+  getPeriodDateBounds,
+  isDateInPeriod,
   round2,
   validateRatios,
 } from '../src/services/budgetEngine';
@@ -425,6 +429,101 @@ describe('budgetEngine', () => {
       expect(summary.netBalance).toBe(1850);
       // resteAVivre = -150 + 1000 + 600 = 1450
       expect(summary.resteAVivre).toBe(1450);
+    });
+
+    it('filters transactions accurately according to startDayOfMonth cycle', () => {
+      const transactions: Transaction[] = [
+        {
+          id: 'early-tx',
+          type: 'expense',
+          amount: 50,
+          pillarId: 'needs',
+          category: 'Courses',
+          title: 'Courses 2 sept (avant le cycle)',
+          date: '2026-09-02T10:00:00.000Z',
+          createdAt: '2026-09-02T10:00:00.000Z',
+          updatedAt: '2026-09-02T10:00:00.000Z',
+        },
+        {
+          id: 'in-cycle-1',
+          type: 'income',
+          amount: 2500,
+          category: 'Salaire',
+          title: 'Salaire du 3 sept',
+          date: '2026-09-03T08:00:00.000Z',
+          createdAt: '2026-09-03T08:00:00.000Z',
+          updatedAt: '2026-09-03T08:00:00.000Z',
+        },
+        {
+          id: 'in-cycle-2',
+          type: 'expense',
+          amount: 100,
+          pillarId: 'wants',
+          category: 'Sorties',
+          title: 'Sortie du 1er oct (dans le cycle)',
+          date: '2026-10-01T20:00:00.000Z',
+          createdAt: '2026-10-01T20:00:00.000Z',
+          updatedAt: '2026-10-01T20:00:00.000Z',
+        },
+        {
+          id: 'next-cycle',
+          type: 'expense',
+          amount: 70,
+          pillarId: 'wants',
+          category: 'Sorties',
+          title: 'Sortie du 3 oct (cycle suivant)',
+          date: '2026-10-03T10:00:00.000Z',
+          createdAt: '2026-10-03T10:00:00.000Z',
+          updatedAt: '2026-10-03T10:00:00.000Z',
+        },
+      ];
+
+      // With startDayOfMonth = 3, cycle 2026-09 goes from 2026-09-03 to 2026-10-02
+      const summary = calculateBudgetPeriodSummary(transactions, ratios, '2026-09', 0, 3);
+      expect(summary.totalIncome).toBe(2500);
+      expect(summary.totalExpenses).toBe(100); // Only in-cycle-2 is included, early-tx and next-cycle are excluded
+      expect(summary.transactions.length).toBe(2);
+      expect(summary.transactions.map((t) => t.id)).toEqual(['in-cycle-1', 'in-cycle-2']);
+    });
+  });
+
+  describe('Cycle Date & Bounds Helpers', () => {
+    it('returns exact calendar month bounds when startDayOfMonth is 1', () => {
+      const bounds = getPeriodDateBounds('2026-09', 1);
+      expect(bounds.startDate.getUTCFullYear()).toBe(2026);
+      expect(bounds.startDate.getUTCMonth()).toBe(8); // September (0-indexed)
+      expect(bounds.startDate.getUTCDate()).toBe(1);
+      expect(bounds.endDate.getUTCDate()).toBe(30);
+    });
+
+    it('returns custom offset cycle bounds when startDayOfMonth is 3', () => {
+      const bounds = getPeriodDateBounds('2026-09', 3);
+      expect(bounds.startDate.getUTCDate()).toBe(3);
+      expect(bounds.startDate.getUTCMonth()).toBe(8); // September
+      expect(bounds.endDate.getUTCDate()).toBe(2);
+      expect(bounds.endDate.getUTCMonth()).toBe(9); // October
+    });
+
+    it('checks date membership with isDateInPeriod', () => {
+      expect(isDateInPeriod('2026-09-02T23:59:59.000Z', '2026-09', 3)).toBe(false);
+      expect(isDateInPeriod('2026-09-03T00:00:00.000Z', '2026-09', 3)).toBe(true);
+      expect(isDateInPeriod('2026-10-02T23:00:00.000Z', '2026-09', 3)).toBe(true);
+      expect(isDateInPeriod('2026-10-03T00:00:00.000Z', '2026-09', 3)).toBe(false);
+    });
+
+    it('formats period sub-labels clearly', () => {
+      const label1 = formatPeriodSubLabel('2026-09', 1);
+      expect(label1).toBe('1 sept. - 30 sept.');
+
+      const label3 = formatPeriodSubLabel('2026-09', 3);
+      expect(label3).toBe('3 sept. - 2 oct.');
+    });
+
+    it('determines current period key for date according to start day', () => {
+      const dateSept2 = new Date(2026, 8, 2); // 2 Sept
+      const dateSept3 = new Date(2026, 8, 3); // 3 Sept
+      expect(getCurrentPeriodKeyForDay(3, dateSept2)).toBe('2026-08');
+      expect(getCurrentPeriodKeyForDay(3, dateSept3)).toBe('2026-09');
     });
   });
 
