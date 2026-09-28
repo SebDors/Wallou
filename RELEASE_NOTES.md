@@ -1,24 +1,30 @@
-# 🚀 Wallou — Version 1.0.1
+# 🚀 Wallou — Version 1.1.0
 
-Bienvenue sur la version **1.0.1** de **Wallou**, l'application de finances personnelles et de gestion budgétaire **50/30/20**, pensée pour être ultra-fluide, sans publicité et **100% local-first** (vos données restent exclusivement sur votre appareil).
+Bienvenue sur la version **1.1.0** de **Wallou**, l'application de finances personnelles et de gestion budgétaire **50/30/20**, pensée pour être ultra-fluide, sans publicité et **100% local-first** (vos données restent exclusivement sur votre appareil).
+
+---
+
+## 🌟 Nouveautés de la Version 1.1.0
+
+### 📈 Tolérance Gestuelle et Scrubbing Fluide sur la Courbe Financière
+* Amélioration majeure du comportement tactile lors de l'exploration au doigt de la courbe d'évolution du solde (`MonthlySpendingCurveChart`).
+* Les micro-dérives verticales du doigt ne viennent plus interrompre ou faire glitcher le slide horizontal : la capture gestuelle (`PanResponder`) assure un scrubbing ininterrompu et continu sur l'ensemble du cycle budgétaire.
+
+### 🏷️ Ajout Direct et Fluide des Catégories
+* Suppression de la modale de validation bloquante lors de l'ajout d'une nouvelle catégorie dans les Réglages.
+* L'ajout est instantané avec un retour haptique subtil de succès.
+
+### 🎨 Nouvelle Icône Officielle Wallou
+* Déploiement de l'icône haute résolution de l'application (adaptive icon Android, splash screen et favicon).
 
 ---
 
-## 🌟 Nouveautés de la Version 1.0.1
+## 🌟 Historique des Versions
 
-### 📅 Cycle Budgétaire & Jour de Départ Personnalisable
-* Vous pouvez désormais configurer le **jour de début de vos mois budgétaires** (ex: le 1er, le 3, le 25 ou le 28 du mois pour caler votre budget sur votre salaire).
-* L'application ajuste automatiquement l'intervalle de calcul (ex: du 3 septembre au 2 octobre) et affiche la période exacte dans le tableau de bord et les graphiques.
-
-### 📊 Navigation Graphique par Onglets
-* Remplacement du défilement gestuel horizontal par un sélecteur d'onglets épuré **[ Répartition (50/30/20) | Évolution du solde ]**.
-* Supprime tout conflit tactile : explorez la courbe financière au doigt (scrubbing tactile continu) avec une fluidité absolue.
-
-### ✨ Expérience de Production Épurée & Nom Officiel
-* Nom officiel de l'application : **Wallou**.
-* Nettoyage intégral des données de démonstration en production : l'application démarre propre et vide pour chaque nouvel utilisateur.
-
----
+### Version 1.0.1
+* Cycle budgétaire et jour de départ personnalisable (ex: du 3 au 3 mois+1).
+* Navigation graphique par onglets dédiés [Répartition | Évolution du solde].
+* Initialisation propre sans données de démonstration.
 
 ## 🌟 Fonctionnalités Principales
 

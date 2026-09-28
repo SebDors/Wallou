@@ -322,7 +322,7 @@ export default function SettingsScreen() {
   const handleCheckUpdate = async () => {
     setIsCheckingUpdate(true);
     try {
-      const release = await checkForUpdate('1.0.1');
+      const release = await checkForUpdate('1.1.0');
       if (release.isAvailable && release.downloadUrl) {
         showDialog({
           title: 'Mise à jour disponible !',
@@ -340,13 +340,13 @@ export default function SettingsScreen() {
       } else {
         showSuccess(
           'À jour',
-          'Vous utilisez déjà la dernière version de Wallou (1.0.1).'
+          'Vous utilisez déjà la dernière version de Wallou (1.1.0).'
         );
       }
     } catch {
       showSuccess(
         'Information',
-        'Wallou est à jour (Version 1.0.1).'
+        'Wallou est à jour (Version 1.1.0).'
       );
     } finally {
       setIsCheckingUpdate(false);
@@ -959,10 +959,13 @@ export default function SettingsScreen() {
           />
           <Pressable
             onPress={async () => {
-              if (!newCatInput.trim()) return;
-              await addCategory(newCatInput.trim());
+              const trimmed = newCatInput.trim();
+              if (!trimmed) return;
+              try {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              } catch {}
+              await addCategory(trimmed);
               setNewCatInput('');
-              showSuccess('Catégorie ajoutée', `"${newCatInput.trim()}" est disponible.`);
             }}
             style={({ pressed }) => [
               styles.addCatBtn,
@@ -1142,10 +1145,10 @@ export default function SettingsScreen() {
       <Card style={styles.cardSection}>
         <View style={styles.aboutRow}>
           <Text style={[theme.typography.body, { color: theme.colors.text.primary, fontWeight: '600' }]}>
-            GestionApp
+            Wallou
           </Text>
           <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
-            v1.0.0 (Build 1)
+            v1.1.0
           </Text>
         </View>
 
