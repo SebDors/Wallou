@@ -10,3 +10,4 @@ web-build/
 .env*
 .DS_Store
 Thumbs.db
+.agents/

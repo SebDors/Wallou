@@ -62,3 +62,8 @@ Integrity mode: development
 - [ ] L'application tourne sans erreur sous Expo Go (SDK 54).
 - [ ] La navigation par onglets expo-router est fluide et le switch thème clair / sombre est fonctionnel.
 - [ ] Le pavé ou formulaire de saisie ne provoque aucun gel de frame ou lag lors de la frappe.
+
+## Follow-up — 2026-09-23T08:54:06Z
+
+Consigne stricte de l'utilisateur pour économiser les tokens :
+Ne crée plus de nouveaux sous-agents supplémentaires en cascade. Reste strictement avec l'équipe restreinte existante (l'orchestrateur actuel, les 2 devs front/back, le testeur et l'agent git). Poursuis directement le développement des jalons de manière concise et efficace sans multiplier les agents ou les boucles verbeuses.

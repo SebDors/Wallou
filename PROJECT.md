@@ -65,9 +65,9 @@
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Git Init & Project Scaffolding | `git init -b main`, `.gitignore`, `package.json` (Expo SDK 54 / RN 0.81 / React 19), `tsconfig.json`, `app.json`, `npm.cmd install` | None | IN_PROGRESS |
-| M2 | Backend Core & Engine | TypeScript models, 50/30/20 calculation engine, recurrence engine, AsyncStorage service, JSON export/import, BudgetContext | M1 | PLANNED |
-| M3 | Frontend UI & Navigation | Theme tokens, ThemeContext, SVG Donut chart, Gauges, Quick Entry 2-tap modal, 4 tabs (Dashboard, Transactions, Recurrences, Settings) | M2 | PLANNED |
+| M1 | Git Init & Project Scaffolding | `git init -b main`, `.gitignore`, `package.json` (Expo SDK 54 / RN 0.81 / React 19), `tsconfig.json`, `app.json`, `npm.cmd install` | None | DONE |
+| M2 | Backend Core & Engine | TypeScript models, 50/30/20 calculation engine, recurrence engine, AsyncStorage service, JSON export/import, BudgetContext | M1 | DONE |
+| M3 | Frontend UI & Navigation | Theme tokens, ThemeContext, SVG Donut chart, Gauges, Quick Entry 2-tap modal, 4 tabs (Dashboard, Transactions, Recurrences, Settings) | M2 | IN_PROGRESS |
 | M4 | CI/CD & Update Service | `.github/workflows/build-apk.yml` and `src/services/updateService.ts` | M1 | PLANNED |
 | M5 | Comprehensive QA & Verification | Jest test suites (budget, recurrences, storage, backup, update), static typechecking (`npx.cmd tsc --noEmit`), Expo Go audit | M2, M3, M4 | PLANNED |
 
