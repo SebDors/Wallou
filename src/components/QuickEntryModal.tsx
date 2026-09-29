@@ -10,7 +10,7 @@ import {
   TouchableWithoutFeedback,
   ScrollView,
 } from 'react-native';
-import { X, ArrowDownCircle, ArrowUpCircle, Plus, RotateCcw } from 'lucide-react-native';
+import { X, ArrowDownCircle, ArrowUpCircle, Plus, RotateCcw, Calendar, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../context/ThemeContext';
 import { useBudget } from '../context/BudgetContext';
@@ -39,6 +39,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
   const [isAddingCategory, setIsAddingCategory] = useState<boolean>(false);
   const [newCategoryName, setNewCategoryName] = useState<string>('');
   const [txType, setTxType] = useState<TransactionType>('expense');
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const lastSubmitTimeRef = useRef<number>(0);
@@ -50,6 +51,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
     setIsAddingCategory(false);
     setNewCategoryName('');
     setTxType('expense');
+    setSelectedDate(new Date());
     setErrorMessage(null);
   }, []);
 
@@ -152,6 +154,16 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
     // Instant modal dismiss (< 50ms)
     handleClose();
 
+    // Compute date ISO preserving current time if today, or 12:00 if custom day
+    const txDate = new Date(selectedDate);
+    const nowObj = new Date();
+    if (txDate.toDateString() === nowObj.toDateString()) {
+      txDate.setHours(nowObj.getHours(), nowObj.getMinutes(), nowObj.getSeconds(), nowObj.getMilliseconds());
+    } else {
+      txDate.setHours(12, 0, 0, 0);
+    }
+    const finalDateIso = txDate.toISOString();
+
     // Async add to ledger (in-memory update is synchronous inside addTransaction)
     addTransaction({
       type: txType,
@@ -159,11 +171,28 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
       pillarId: effectivePillar,
       category: finalCategory,
       title: finalTitle,
-      date: nowIso,
+      date: finalDateIso,
     }).catch((err) => {
       console.error('Failed to add transaction from QuickEntryModal:', err);
     });
   };
+
+  const isToday = useMemo(() => {
+    return selectedDate.toDateString() === new Date().toDateString();
+  }, [selectedDate]);
+
+  const isYesterday = useMemo(() => {
+    const y = new Date();
+    y.setDate(y.getDate() - 1);
+    return selectedDate.toDateString() === y.toDateString();
+  }, [selectedDate]);
+
+  const formattedSelectedDate = useMemo(() => {
+    return selectedDate.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'short',
+    });
+  }, [selectedDate]);
 
   const currencySymbol = settings?.currency || '€';
 
@@ -392,6 +421,146 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ visible, onClo
                     },
                   ]}
                 />
+              </View>
+
+              {/* Date Selector Row */}
+              <View style={styles.dateSelectorRow}>
+                <View style={styles.dateQuickChips}>
+                  <Pressable
+                    onPress={() => {
+                      setSelectedDate(new Date());
+                      try {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      } catch {}
+                    }}
+                    style={[
+                      styles.dateChip,
+                      {
+                        backgroundColor: isToday
+                          ? theme.colors.pillar.savings
+                          : theme.colors.bg.surfaceSubtle,
+                        borderColor: isToday
+                          ? theme.colors.pillar.savings
+                          : theme.colors.border.subtle,
+                        borderRadius: theme.radii.full,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.dateChipText,
+                        {
+                          color: isToday ? '#FFFFFF' : theme.colors.text.secondary,
+                          fontWeight: isToday ? '700' : '500',
+                        },
+                      ]}
+                    >
+                      Aujourd'hui
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      const y = new Date();
+                      y.setDate(y.getDate() - 1);
+                      setSelectedDate(y);
+                      try {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      } catch {}
+                    }}
+                    style={[
+                      styles.dateChip,
+                      {
+                        backgroundColor: isYesterday
+                          ? theme.colors.pillar.savings
+                          : theme.colors.bg.surfaceSubtle,
+                        borderColor: isYesterday
+                          ? theme.colors.pillar.savings
+                          : theme.colors.border.subtle,
+                        borderRadius: theme.radii.full,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.dateChipText,
+                        {
+                          color: isYesterday ? '#FFFFFF' : theme.colors.text.secondary,
+                          fontWeight: isYesterday ? '700' : '500',
+                        },
+                      ]}
+                    >
+                      Hier
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {/* Day Stepper */}
+                <View
+                  style={[
+                    styles.dateStepper,
+                    {
+                      backgroundColor: theme.colors.bg.surfaceSubtle,
+                      borderColor: theme.colors.border.subtle,
+                      borderRadius: theme.radii.full,
+                    },
+                  ]}
+                >
+                  <Pressable
+                    onPress={() => {
+                      const prev = new Date(selectedDate);
+                      prev.setDate(prev.getDate() - 1);
+                      setSelectedDate(prev);
+                      try {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      } catch {}
+                    }}
+                    hitSlop={8}
+                    style={styles.stepperArrow}
+                  >
+                    <ChevronLeft size={16} color={theme.colors.text.primary} />
+                  </Pressable>
+
+                  <View style={styles.dateDisplay}>
+                    <Calendar
+                      size={13}
+                      color={
+                        !isToday && !isYesterday
+                          ? theme.colors.pillar.savings
+                          : theme.colors.text.secondary
+                      }
+                      style={{ marginRight: 5 }}
+                    />
+                    <Text
+                      style={[
+                        styles.dateDisplayText,
+                        {
+                          color:
+                            !isToday && !isYesterday
+                              ? theme.colors.pillar.savings
+                              : theme.colors.text.primary,
+                        },
+                      ]}
+                    >
+                      {formattedSelectedDate}
+                    </Text>
+                  </View>
+
+                  <Pressable
+                    onPress={() => {
+                      const next = new Date(selectedDate);
+                      next.setDate(next.getDate() + 1);
+                      setSelectedDate(next);
+                      try {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      } catch {}
+                    }}
+                    hitSlop={8}
+                    style={styles.stepperArrow}
+                  >
+                    <ChevronRight size={16} color={theme.colors.text.primary} />
+                  </Pressable>
+                </View>
               </View>
 
               {/* Category Selector Chips */}
@@ -799,5 +968,48 @@ const styles = StyleSheet.create({
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  dateSelectorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    paddingHorizontal: 2,
+  },
+  dateQuickChips: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  dateChip: {
+    paddingVertical: 5,
+    paddingHorizontal: 11,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateChipText: {
+    fontSize: 12,
+  },
+  dateStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  stepperArrow: {
+    padding: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  dateDisplayText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
