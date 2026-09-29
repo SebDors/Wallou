@@ -1,10 +1,14 @@
-# 🚀 Wallou — Version 1.1.1
+# 🚀 Wallou — Version 1.2.0
 
-Bienvenue sur la mise à jour **1.1.1** de **Wallou** ! Cette version apporte des ajustements essentiels sur le suivi du budget en temps réel, la chronologie des opérations et l'exportation des données.
+Bienvenue sur la mise à jour majeure **1.2.0** de **Wallou** ! Cette version intègre un tout nouveau système de notification automatique des mises à jour, la gestion affinée du reste à vivre en temps réel, la chronologie par cycle et le téléchargement direct de vos sauvegardes.
 
 ---
 
-## 🌟 Nouveautés & Corrections de la Version 1.1.1
+## 🌟 Nouveautés & Améliorations de la Version 1.2.0
+
+### 🔔 Détection Automatique des Mises à Jour & Toast de Notification
+* **Notification au démarrage** : Dès l'ouverture de l'application, Wallou vérifie automatiquement en arrière-plan si une nouvelle version est disponible. Une bannière toast élégante et interactive s'affiche en haut de l'écran pour vous proposer de la télécharger d'un simple geste.
+* **Vérification manuelle fiabilisée** : L'outil de recherche de mise à jour dans l'onglet *Réglages* est désormais directement relié aux dépôts officiels de Wallou pour vous garantir une détection instantanée.
 
 ### ⏱️ Dépenses en Direct & Reste à Vivre Réel
 * **Non-déduction des opérations futures** : Vos dépenses futures programmées (ex. loyer en fin de mois, virements d'épargne) ne sont plus déduites de vos dépenses en direct ni de votre reste à vivre tant que leur date d'exécution n'est pas atteinte. Votre solde disponible reflète fidèlement la réalité de votre compte au jour le jour.
@@ -23,9 +27,9 @@ Bienvenue sur la mise à jour **1.1.1** de **Wallou** ! Cette version apporte de
 * **Respect du jour de démarrage du budget** : L'onglet Fixe ordonne désormais les prélèvements selon la chronologie effective de votre cycle financier (par exemple, pour un cycle débutant le 29, les charges du 30 puis celles du 1er du mois suivant s'affichent dans l'ordre naturel de leur exécution).
 
 ### 💾 Téléchargement Direct de la Sauvegarde (JSON)
-* **Enregistrement dans vos fichiers** : Le bouton de sauvegarde vous permet de choisir directement le dossier de destination sur votre appareil (par exemple dans le dossier *Téléchargements*) via le sélecteur de stockage système.
+* **Enregistrement dans vos fichiers** : Le bouton de sauvegarde vous permet de choisir directement le dossier de destination sur votre appareil (par exemple dans le dossier *Téléchargements*) via le sélecteur de stockage système Android (SAF).
 
 ---
 
 ### 📱 Installation de l'APK Android
-Téléchargez le fichier `Wallou-v1.1.1.apk` ci-dessous et installez-le directement sur votre appareil Android.
+Téléchargez le fichier `Wallou-v1.2.0.apk` ci-dessous et installez-le directement sur votre appareil Android.
