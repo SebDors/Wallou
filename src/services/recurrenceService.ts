@@ -1,3 +1,4 @@
+import { isDateInPeriod } from './budgetEngine';
 import { RecurringItem, Transaction } from '../types/budget';
 
 let idCounter = 0;
@@ -32,6 +33,37 @@ export function clampDayOfMonth(day: number, year: number, month: number): numbe
 }
 
 /**
+ * Computes the exact ISO date string for a recurring day of month inside a budget period.
+ * If startDayOfMonth > 1 (e.g. 29):
+ * - days >= 29 belong to the first calendar month (e.g. 2026-09-29, 2026-09-30)
+ * - days < 29 belong to the second calendar month (e.g. 2026-10-02)
+ */
+export function computeRecurringDateInPeriod(
+  dayOfMonth: number,
+  periodKey: string,
+  startDayOfMonth: number = 1
+): string {
+  const [yearStr, monthStr] = (periodKey || '').split('-');
+  const year = parseInt(yearStr, 10) || new Date().getFullYear();
+  const month = parseInt(monthStr, 10) || new Date().getMonth() + 1;
+
+  if (startDayOfMonth <= 1 || dayOfMonth >= startDayOfMonth) {
+    const clampedDay = clampDayOfMonth(dayOfMonth, year, month);
+    const dayStr = String(clampedDay).padStart(2, '0');
+    return `${yearStr}-${monthStr}-${dayStr}T08:00:00.000Z`;
+  }
+
+  // Days strictly before startDayOfMonth occur in the following calendar month
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+  const clampedDay = clampDayOfMonth(dayOfMonth, nextYear, nextMonth);
+  const nextYearStr = String(nextYear);
+  const nextMonthStr = String(nextMonth).padStart(2, '0');
+  const dayStr = String(clampedDay).padStart(2, '0');
+  return `${nextYearStr}-${nextMonthStr}-${dayStr}T08:00:00.000Z`;
+}
+
+/**
  * Evaluates active recurring items against a budget period (YYYY-MM)
  * and generates missing transactions idempotently.
  *
@@ -40,11 +72,13 @@ export function clampDayOfMonth(day: number, year: number, month: number): numbe
  * 2. Honors startDate and endDate boundaries if provided.
  * 3. Idempotent: generates at most one transaction per recurringId per periodKey.
  * 4. Month-end clamping: safely clamps day 29, 30, 31 to month maximum.
+ * 5. Respects startDayOfMonth cycle offset.
  */
 export function processRecurringTransactions(
   recurringItems: RecurringItem[],
   existingTransactions: Transaction[],
-  periodKey: string
+  periodKey: string,
+  startDayOfMonth: number = 1
 ): Transaction[] {
   if (!periodKey || !/^\d{4}-\d{2}$/.test(periodKey)) {
     return [];
@@ -67,35 +101,38 @@ export function processRecurringTransactions(
       continue;
     }
 
-    // 2. Check startDate boundary
+    // 2. Compute exact execution date in this period
+    const transactionDate = computeRecurringDateInPeriod(
+      item.dayOfMonth,
+      periodKey,
+      startDayOfMonth
+    );
+    const txDayStr = transactionDate.slice(0, 10);
+
+    // 3. Check startDate boundary
     if (item.startDate) {
-      const startPeriod = item.startDate.slice(0, 7);
-      if (startPeriod > periodKey) {
+      const itemStartDayStr = item.startDate.slice(0, 10);
+      if (itemStartDayStr > txDayStr) {
         continue;
       }
     }
 
-    // 3. Check endDate boundary
+    // 4. Check endDate boundary
     if (item.endDate) {
-      const endPeriod = item.endDate.slice(0, 7);
-      if (endPeriod < periodKey) {
+      const itemEndDayStr = item.endDate.slice(0, 10);
+      if (itemEndDayStr < txDayStr) {
         continue;
       }
     }
 
-    // 4. Check idempotency: already executed for this period?
+    // 5. Check idempotency: already executed for this period?
     const isAlreadyGenerated = existingTransactions.some(
-      (tx) => tx.recurringId === item.id && tx.date && tx.date.slice(0, 7) === periodKey
+      (tx) => tx.recurringId === item.id && isDateInPeriod(tx.date, periodKey, startDayOfMonth)
     );
 
     if (isAlreadyGenerated) {
       continue;
     }
-
-    // 5. Compute clamped execution date
-    const clampedDay = clampDayOfMonth(item.dayOfMonth, year, month);
-    const dayStr = String(clampedDay).padStart(2, '0');
-    const transactionDate = `${yearStr}-${monthStr}-${dayStr}T08:00:00.000Z`;
 
     // 6. Instantiate new transaction
     const newTx: Transaction = {

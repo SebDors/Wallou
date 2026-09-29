@@ -485,6 +485,76 @@ describe('budgetEngine', () => {
       expect(summary.transactions.length).toBe(2);
       expect(summary.transactions.map((t) => t.id)).toEqual(['in-cycle-1', 'in-cycle-2']);
     });
+
+    it('excludes future planned transactions from live spent and resteAVivre when asOfDateIso is set', () => {
+      const transactions: Transaction[] = [
+        {
+          id: 'salary',
+          type: 'income',
+          amount: 1749.5,
+          category: 'Salaire',
+          title: 'Salaire',
+          date: '2026-09-29T08:00:00.000Z',
+          createdAt: '2026-09-29T08:00:00.000Z',
+          updatedAt: '2026-09-29T08:00:00.000Z',
+        },
+        {
+          id: 'loyer-tomorrow',
+          type: 'expense',
+          amount: 375,
+          pillarId: 'needs',
+          category: 'Loyer',
+          title: 'Loyer',
+          date: '2026-09-30T08:00:00.000Z', // Tomorrow
+          createdAt: '2026-09-29T08:00:00.000Z',
+          updatedAt: '2026-09-29T08:00:00.000Z',
+        },
+        {
+          id: 'trade-future',
+          type: 'expense',
+          amount: 360,
+          pillarId: 'savings',
+          category: 'Épargne',
+          title: 'Trade Republic',
+          date: '2026-10-02T08:00:00.000Z', // In 3 days
+          createdAt: '2026-09-29T08:00:00.000Z',
+          updatedAt: '2026-09-29T08:00:00.000Z',
+        },
+      ];
+
+      // On 2026-09-29: Loyer (Sept 30) and Trade (Oct 2) must NOT be counted yet in actual live spent
+      const summaryToday = calculateBudgetPeriodSummary(
+        transactions,
+        ratios,
+        '2026-09',
+        0,
+        29,
+        '2026-09-29'
+      );
+
+      expect(summaryToday.totalIncome).toBe(1749.5);
+      expect(summaryToday.totalExpenses).toBe(0); // 0 spent so far!
+      expect(summaryToday.pillars.needs.spent).toBe(0);
+      expect(summaryToday.pillars.savings.spent).toBe(0);
+      // Reste à vivre intact: needs (1749.5 * 50% = 874.75) + wants (1749.5 * 30% = 524.85) = 1399.60 €
+      expect(summaryToday.resteAVivre).toBe(1399.6);
+      // But period transactions still preserves all 3 transactions for forecast/display
+      expect(summaryToday.transactions.length).toBe(3);
+
+      // On 2026-09-30: Loyer is now passed, Trade Republic is still future
+      const summaryTomorrow = calculateBudgetPeriodSummary(
+        transactions,
+        ratios,
+        '2026-09',
+        0,
+        29,
+        '2026-09-30'
+      );
+      expect(summaryTomorrow.totalExpenses).toBe(375);
+      expect(summaryTomorrow.pillars.needs.spent).toBe(375);
+      expect(summaryTomorrow.pillars.savings.spent).toBe(0); // Trade Republic not spent yet
+      expect(summaryTomorrow.resteAVivre).toBe(1024.6);
+    });
   });
 
   describe('Cycle Date & Bounds Helpers', () => {

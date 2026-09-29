@@ -106,27 +106,45 @@ export default function TransactionsScreen() {
     return result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, activeFilter, searchQuery]);
 
-  // Group by date
+  // Group by date with future/upcoming distinction within 3 days and dual delimiters
   const groupedSections = useMemo(() => {
     const now = new Date();
     const todayStr = now.toISOString().slice(0, 10);
+    const dNow = new Date(todayStr + 'T00:00:00Z');
 
     const yesterday = new Date(now);
     yesterday.setDate(now.getDate() - 1);
     const yesterdayStr = yesterday.toISOString().slice(0, 10);
 
-    const groupMap = new Map<string, Transaction[]>();
+    interface DateGroup {
+      title: string;
+      dateStr: string;
+      isFuture: boolean;
+      data: Transaction[];
+    }
 
-    for (const tx of filteredTransactions) {
+    const groupMap = new Map<string, DateGroup>();
+
+    // Filter: include all past/today transactions, but only future transactions within 3 days
+    const eligibleTransactions = filteredTransactions.filter((tx) => {
+      const txDateStr = tx.date ? tx.date.slice(0, 10) : todayStr;
+      if (txDateStr <= todayStr) return true;
+      const dTarget = new Date(txDateStr + 'T00:00:00Z');
+      const diffDays = Math.round((dTarget.getTime() - dNow.getTime()) / (24 * 3600 * 1000));
+      return diffDays <= 3;
+    });
+
+    for (const tx of eligibleTransactions) {
       const txDateStr = tx.date ? tx.date.slice(0, 10) : todayStr;
       let label: string;
+      const isFuture = txDateStr > todayStr;
 
       if (txDateStr === todayStr) {
         label = "Aujourd'hui";
       } else if (txDateStr === yesterdayStr) {
         label = 'Hier';
       } else {
-        const d = new Date(txDateStr);
+        const d = new Date(txDateStr + 'T12:00:00Z');
         label = d.toLocaleDateString('fr-FR', {
           day: 'numeric',
           month: 'long',
@@ -134,16 +152,53 @@ export default function TransactionsScreen() {
         });
       }
 
-      if (!groupMap.has(label)) {
-        groupMap.set(label, []);
+      if (!groupMap.has(txDateStr)) {
+        groupMap.set(txDateStr, {
+          title: label,
+          dateStr: txDateStr,
+          isFuture,
+          data: [],
+        });
       }
-      groupMap.get(label)!.push(tx);
+      groupMap.get(txDateStr)!.data.push(tx);
     }
 
-    const sections: { title: string; data: Transaction[] }[] = [];
-    for (const [title, data] of groupMap.entries()) {
-      sections.push({ title, data });
+    const hasFuture = Array.from(groupMap.values()).some((g) => g.isFuture);
+    let foundFirstFuture = false;
+    let foundFirstNonFuture = false;
+
+    const sections: {
+      title: string;
+      dateStr: string;
+      isFuture: boolean;
+      delimiterText?: string;
+      data: Transaction[];
+    }[] = [];
+
+    for (const group of groupMap.values()) {
+      let delimiterText: string | undefined;
+
+      // 1. Delimiter above first future section
+      if (group.isFuture && !foundFirstFuture) {
+        delimiterText = 'Prochaines dépenses';
+        foundFirstFuture = true;
+      }
+
+      // 2. Delimiter above first realized section (only if there are future sections)
+      if (hasFuture && !group.isFuture && !foundFirstNonFuture) {
+        delimiterText = 'Dépenses réalisées';
+        foundFirstNonFuture = true;
+      }
+
+      sections.push({
+        title: group.title,
+        dateStr: group.dateStr,
+        isFuture: group.isFuture,
+        delimiterText,
+        data: group.data,
+      });
     }
+
     return sections;
   }, [filteredTransactions]);
 
@@ -287,21 +342,31 @@ export default function TransactionsScreen() {
           },
         ]}
         showsVerticalScrollIndicator={false}
-        renderSectionHeader={({ section: { title } }) => (
-          <View
-            style={[
-              styles.sectionHeader,
-              { backgroundColor: theme.colors.bg.canvas },
-            ]}
-          >
-            <Text
-              style={[
-                theme.typography.caption,
-                { color: theme.colors.text.secondary, fontWeight: '700', textTransform: 'uppercase' },
-              ]}
-            >
-              {title}
-            </Text>
+        renderSectionHeader={({ section }) => (
+          <View style={{ backgroundColor: theme.colors.bg.canvas }}>
+            {section.delimiterText && (
+              <View style={styles.upcomingDelimiter}>
+                <View style={[styles.delimiterLine, { backgroundColor: theme.colors.border.subtle }]} />
+                <Text style={[styles.delimiterText, { color: theme.colors.text.secondary }]}>
+                  {section.delimiterText}
+                </Text>
+                <View style={[styles.delimiterLine, { backgroundColor: theme.colors.border.subtle }]} />
+              </View>
+            )}
+            <View style={styles.sectionHeader}>
+              <Text
+                style={[
+                  theme.typography.caption,
+                  {
+                    color: section.isFuture ? theme.colors.pillar.savings : theme.colors.text.secondary,
+                    fontWeight: '700',
+                    textTransform: 'uppercase',
+                  },
+                ]}
+              >
+                {section.title}
+              </Text>
+            </View>
           </View>
         )}
         renderItem={({ item }) => {
@@ -508,6 +573,24 @@ const styles = StyleSheet.create({
   sectionHeader: {
     paddingVertical: 8,
     marginTop: 12,
+  },
+  upcomingDelimiter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  delimiterLine: {
+    flex: 1,
+    height: 1,
+  },
+  delimiterText: {
+    marginHorizontal: 12,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   txCard: {
     marginVertical: 0,

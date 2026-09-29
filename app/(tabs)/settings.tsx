@@ -7,6 +7,7 @@ import {
   Pressable,
   TextInput,
   Modal,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -203,18 +204,44 @@ export default function SettingsScreen() {
       const payload = exportData();
       const jsonString = JSON.stringify(payload, null, 2);
 
+      // On Android: Use StorageAccessFramework to download directly into the user's chosen folder (e.g. Téléchargements)
+      if (Platform.OS === 'android' && FileSystem.StorageAccessFramework) {
+        try {
+          const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+          if (permissions.granted) {
+            const fileName = `wallou-backup-${new Date().toISOString().slice(0, 10)}`;
+            const fileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+              permissions.directoryUri,
+              fileName,
+              'application/json'
+            );
+            await FileSystem.writeAsStringAsync(fileUri, jsonString, {
+              encoding: FileSystem.EncodingType.UTF8,
+            });
+            showSuccess(
+              'Sauvegarde téléchargée',
+              'Le fichier JSON de sauvegarde a bien été enregistré dans votre dossier.'
+            );
+            return;
+          }
+        } catch (safErr) {
+          console.warn('StorageAccessFramework failed, fallback to native sharing:', safErr);
+        }
+      }
+
+      // Fallback for iOS or if StorageAccessFramework was declined/unavailable
       const isShareAvailable = await Sharing.isAvailableAsync().catch(() => false);
       const cacheDir = FileSystem.cacheDirectory;
 
       if (cacheDir && isShareAvailable) {
-        const fileUri = `${cacheDir}gestionapp-backup-${Date.now()}.json`;
+        const fileUri = `${cacheDir}wallou-backup-${Date.now()}.json`;
         await FileSystem.writeAsStringAsync(fileUri, jsonString, {
           encoding: FileSystem.EncodingType.UTF8,
         });
 
         await Sharing.shareAsync(fileUri, {
           mimeType: 'application/json',
-          dialogTitle: 'Exporter ma sauvegarde GestionApp',
+          dialogTitle: 'Enregistrer la sauvegarde Wallou',
           UTI: 'public.json',
         });
       } else {
@@ -224,7 +251,7 @@ export default function SettingsScreen() {
       }
     } catch (err: any) {
       console.error('Export failed:', err);
-      showError('Erreur d’export', err?.message || 'Impossible d’exporter les données.');
+      showError('Erreur de téléchargement', err?.message || 'Impossible d’enregistrer les données.');
     }
   };
 
@@ -322,7 +349,7 @@ export default function SettingsScreen() {
   const handleCheckUpdate = async () => {
     setIsCheckingUpdate(true);
     try {
-      const release = await checkForUpdate('1.1.0');
+      const release = await checkForUpdate('1.1.1');
       if (release.isAvailable && release.downloadUrl) {
         showDialog({
           title: 'Mise à jour disponible !',
@@ -340,13 +367,13 @@ export default function SettingsScreen() {
       } else {
         showSuccess(
           'À jour',
-          'Vous utilisez déjà la dernière version de Wallou (1.1.0).'
+          'Vous utilisez déjà la dernière version de Wallou (1.1.1).'
         );
       }
     } catch {
       showSuccess(
         'Information',
-        'Wallou est à jour (Version 1.1.0).'
+        'Wallou est à jour (Version 1.1.1).'
       );
     } finally {
       setIsCheckingUpdate(false);
@@ -1055,10 +1082,10 @@ export default function SettingsScreen() {
             <Download size={18} color={theme.colors.pillar.savings} />
             <View style={{ marginLeft: 12 }}>
               <Text style={[theme.typography.body, { color: theme.colors.text.primary, fontWeight: '600' }]}>
-                Exporter les données (JSON)
+                Télécharger la sauvegarde (JSON)
               </Text>
               <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
-                Sauvegarde hermétique et partageable
+                Enregistrer le fichier de sauvegarde sur votre appareil
               </Text>
             </View>
           </View>
@@ -1148,7 +1175,7 @@ export default function SettingsScreen() {
             Wallou
           </Text>
           <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
-            v1.1.0
+            v1.1.1
           </Text>
         </View>
 
