@@ -106,7 +106,7 @@ export default function TransactionsScreen() {
     return result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, activeFilter, searchQuery]);
 
-  // Group by date
+  // Group by date with future/upcoming distinction
   const groupedSections = useMemo(() => {
     const now = new Date();
     const todayStr = now.toISOString().slice(0, 10);
@@ -115,18 +115,26 @@ export default function TransactionsScreen() {
     yesterday.setDate(now.getDate() - 1);
     const yesterdayStr = yesterday.toISOString().slice(0, 10);
 
-    const groupMap = new Map<string, Transaction[]>();
+    interface DateGroup {
+      title: string;
+      dateStr: string;
+      isFuture: boolean;
+      data: Transaction[];
+    }
+
+    const groupMap = new Map<string, DateGroup>();
 
     for (const tx of filteredTransactions) {
       const txDateStr = tx.date ? tx.date.slice(0, 10) : todayStr;
       let label: string;
+      const isFuture = txDateStr > todayStr;
 
       if (txDateStr === todayStr) {
         label = "Aujourd'hui";
       } else if (txDateStr === yesterdayStr) {
         label = 'Hier';
       } else {
-        const d = new Date(txDateStr);
+        const d = new Date(txDateStr + 'T12:00:00Z');
         label = d.toLocaleDateString('fr-FR', {
           day: 'numeric',
           month: 'long',
@@ -134,16 +142,41 @@ export default function TransactionsScreen() {
         });
       }
 
-      if (!groupMap.has(label)) {
-        groupMap.set(label, []);
+      if (!groupMap.has(txDateStr)) {
+        groupMap.set(txDateStr, {
+          title: label,
+          dateStr: txDateStr,
+          isFuture,
+          data: [],
+        });
       }
-      groupMap.get(label)!.push(tx);
+      groupMap.get(txDateStr)!.data.push(tx);
     }
 
-    const sections: { title: string; data: Transaction[] }[] = [];
-    for (const [title, data] of groupMap.entries()) {
-      sections.push({ title, data });
+    let foundFirstFuture = false;
+    const sections: {
+      title: string;
+      dateStr: string;
+      isFuture: boolean;
+      isFirstFuture: boolean;
+      data: Transaction[];
+    }[] = [];
+
+    for (const group of groupMap.values()) {
+      let isFirstFuture = false;
+      if (group.isFuture && !foundFirstFuture) {
+        isFirstFuture = true;
+        foundFirstFuture = true;
+      }
+      sections.push({
+        title: group.title,
+        dateStr: group.dateStr,
+        isFuture: group.isFuture,
+        isFirstFuture,
+        data: group.data,
+      });
     }
+
     return sections;
   }, [filteredTransactions]);
 
@@ -287,21 +320,31 @@ export default function TransactionsScreen() {
           },
         ]}
         showsVerticalScrollIndicator={false}
-        renderSectionHeader={({ section: { title } }) => (
-          <View
-            style={[
-              styles.sectionHeader,
-              { backgroundColor: theme.colors.bg.canvas },
-            ]}
-          >
-            <Text
-              style={[
-                theme.typography.caption,
-                { color: theme.colors.text.secondary, fontWeight: '700', textTransform: 'uppercase' },
-              ]}
-            >
-              {title}
-            </Text>
+        renderSectionHeader={({ section }) => (
+          <View style={{ backgroundColor: theme.colors.bg.canvas }}>
+            {section.isFirstFuture && (
+              <View style={styles.upcomingDelimiter}>
+                <View style={[styles.delimiterLine, { backgroundColor: theme.colors.border.subtle }]} />
+                <Text style={[styles.delimiterText, { color: theme.colors.text.secondary }]}>
+                  Prochaines dépenses
+                </Text>
+                <View style={[styles.delimiterLine, { backgroundColor: theme.colors.border.subtle }]} />
+              </View>
+            )}
+            <View style={styles.sectionHeader}>
+              <Text
+                style={[
+                  theme.typography.caption,
+                  {
+                    color: section.isFuture ? theme.colors.pillar.savings : theme.colors.text.secondary,
+                    fontWeight: '700',
+                    textTransform: 'uppercase',
+                  },
+                ]}
+              >
+                {section.title}
+              </Text>
+            </View>
           </View>
         )}
         renderItem={({ item }) => {
@@ -508,6 +551,24 @@ const styles = StyleSheet.create({
   sectionHeader: {
     paddingVertical: 8,
     marginTop: 12,
+  },
+  upcomingDelimiter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  delimiterLine: {
+    flex: 1,
+    height: 1,
+  },
+  delimiterText: {
+    marginHorizontal: 12,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   txCard: {
     marginVertical: 0,

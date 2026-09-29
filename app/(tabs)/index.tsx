@@ -39,6 +39,7 @@ import {
   getPeriodDateBounds,
   formatPeriodSubLabel,
 } from '../../src/services/budgetEngine';
+import { computeRecurringDateInPeriod } from '../../src/services/recurrenceService';
 import { PillarId, Transaction } from '../../src/types/budget';
 
 export default function DashboardScreen() {
@@ -118,25 +119,38 @@ export default function DashboardScreen() {
     interface UpcomingCandidate {
       title: string;
       amount: number;
-      day: number;
+      dateIso: string;
+      dayInCycle: number;
       category: string;
     }
     const candidates: UpcomingCandidate[] = [];
+
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
 
     // 1. From active recurring items
     if (recurring && recurring.length > 0) {
       for (const item of recurring) {
         if (!item.isActive || item.type !== 'expense') continue;
-        const dueDay = Math.min(item.dayOfMonth, totalDaysInCycle);
-        if (isCurrentCycle ? dueDay >= currentDayInCycle : true) {
+        const txDateIso = computeRecurringDateInPeriod(
+          item.dayOfMonth,
+          currentPeriodKey,
+          startDayOfMonth
+        );
+        const txDateStr = txDateIso.slice(0, 10);
+
+        if (txDateStr >= todayStr) {
           const alreadyExecuted = summary.transactions.some(
-            (tx) => tx.recurringId === item.id
+            (tx) => tx.recurringId === item.id && tx.date && tx.date.slice(0, 10) === txDateStr
           );
           if (!alreadyExecuted) {
+            const txTime = new Date(txDateIso).getTime();
+            const dayInCycle = Math.floor((txTime - startDate.getTime()) / (24 * 3600 * 1000)) + 1;
             candidates.push({
               title: item.title || item.category,
               amount: item.amount,
-              day: dueDay,
+              dateIso: txDateIso,
+              dayInCycle,
               category: item.category,
             });
           }
@@ -147,16 +161,18 @@ export default function DashboardScreen() {
     // 2. Also check planned/future expense transactions in this cycle
     for (const tx of summary.transactions) {
       if (tx.type !== 'expense' || !tx.date) continue;
-      const txTime = new Date(tx.date).getTime();
-      const txDayInCycle = Math.floor((txTime - startDate.getTime()) / (24 * 3600 * 1000)) + 1;
-      if (isCurrentCycle && txDayInCycle > currentDayInCycle) {
-        const alreadyIn = candidates.some((c) => c.title === tx.title && c.day === txDayInCycle);
+      const txDateStr = tx.date.slice(0, 10);
+      if (txDateStr >= todayStr) {
+        const txTime = new Date(tx.date).getTime();
+        const dayInCycle = Math.floor((txTime - startDate.getTime()) / (24 * 3600 * 1000)) + 1;
+        const alreadyIn = candidates.some((c) => c.title === tx.title && c.dateIso.slice(0, 10) === txDateStr);
         if (!alreadyIn) {
           const netAmt = tx.refundedAmount ? Math.max(0, tx.amount - tx.refundedAmount) : tx.amount;
           candidates.push({
             title: tx.title || tx.category,
             amount: netAmt,
-            day: txDayInCycle,
+            dateIso: tx.date,
+            dayInCycle,
             category: tx.category,
           });
         }
@@ -165,19 +181,23 @@ export default function DashboardScreen() {
 
     if (candidates.length === 0) return null;
 
-    candidates.sort((a, b) => a.day - b.day);
+    candidates.sort((a, b) => new Date(a.dateIso).getTime() - new Date(b.dateIso).getTime());
     const nextItem = candidates[0];
 
-    const diff = nextItem.day - currentDayInCycle;
+    const nextDateStr = nextItem.dateIso.slice(0, 10);
+    const dNow = new Date(todayStr + 'T00:00:00Z');
+    const dTarget = new Date(nextDateStr + 'T00:00:00Z');
+    const diff = Math.round((dTarget.getTime() - dNow.getTime()) / (24 * 3600 * 1000));
+
     let relativeLabel: string;
     if (diff === 0) {
-      relativeLabel = `Aujourd'hui - Jour ${nextItem.day}`;
+      relativeLabel = `Aujourd'hui - Jour ${nextItem.dayInCycle}`;
     } else if (diff === 1) {
-      relativeLabel = `Demain - Jour ${nextItem.day}`;
+      relativeLabel = `Demain - Jour ${nextItem.dayInCycle}`;
     } else if (diff > 1) {
       relativeLabel = `Dans ${diff} jours`;
     } else {
-      relativeLabel = `Jour ${nextItem.day}`;
+      relativeLabel = `Jour ${nextItem.dayInCycle}`;
     }
 
     return {
@@ -185,7 +205,7 @@ export default function DashboardScreen() {
       relativeLabel,
       resteAfter: summary.resteAVivre - nextItem.amount,
     };
-  }, [recurring, summary.transactions, summary.resteAVivre, isCurrentCycle, currentDayInCycle, totalDaysInCycle, startDate]);
+  }, [recurring, summary.transactions, summary.resteAVivre, currentPeriodKey, startDayOfMonth, startDate]);
 
   const onRefresh = async () => {
     setRefreshing(true);
