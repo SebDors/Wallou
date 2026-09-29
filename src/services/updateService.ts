@@ -35,8 +35,8 @@ export function compareSemver(v1: string, v2: string): number {
  */
 export async function checkForUpdate(
   currentVersion: string,
-  repoOwner: string = 'user',
-  repoName: string = 'GestionApp'
+  repoOwner: string = 'SebDors',
+  repoName: string = 'Wallou'
 ): Promise<ReleaseInfo> {
   const defaultResult: ReleaseInfo = {
     version: currentVersion,

@@ -41,6 +41,7 @@ import { Card } from '../../src/components/Card';
 import { formatPeriodSubLabel, validateRatios } from '../../src/services/budgetEngine';
 import { validateAndSanitizeBackup } from '../../src/services/exportImportService';
 import { checkForUpdate, openDownloadPage } from '../../src/services/updateService';
+import { APP_VERSION } from '../../src/constants/version';
 import { BudgetRatios, RolloverMode } from '../../src/types/budget';
 
 const CURRENCIES = [
@@ -349,7 +350,7 @@ export default function SettingsScreen() {
   const handleCheckUpdate = async () => {
     setIsCheckingUpdate(true);
     try {
-      const release = await checkForUpdate('1.1.1');
+      const release = await checkForUpdate(APP_VERSION);
       if (release.isAvailable && release.downloadUrl) {
         showDialog({
           title: 'Mise à jour disponible !',
@@ -367,13 +368,13 @@ export default function SettingsScreen() {
       } else {
         showSuccess(
           'À jour',
-          'Vous utilisez déjà la dernière version de Wallou (1.1.1).'
+          `Vous utilisez déjà la dernière version de Wallou (${APP_VERSION}).`
         );
       }
     } catch {
       showSuccess(
         'Information',
-        'Wallou est à jour (Version 1.1.1).'
+        `Wallou est à jour (Version ${APP_VERSION}).`
       );
     } finally {
       setIsCheckingUpdate(false);
@@ -1175,7 +1176,7 @@ export default function SettingsScreen() {
             Wallou
           </Text>
           <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
-            v1.1.1
+            v{APP_VERSION}
           </Text>
         </View>
 

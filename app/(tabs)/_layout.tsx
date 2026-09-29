@@ -115,19 +115,24 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   );
 }
 
+import { UpdateNotificationToast } from '../../src/components';
+
 export default function TabLayout() {
   return (
-    <Tabs
-      tabBar={(props) => <CustomTabBar {...props} />}
-      screenOptions={{
-        headerShown: false,
-      }}
-    >
-      <Tabs.Screen name="index" options={{ title: 'Aperçu' }} />
-      <Tabs.Screen name="transactions" options={{ title: 'Opérations' }} />
-      <Tabs.Screen name="recurrences" options={{ title: 'Fixes' }} />
-      <Tabs.Screen name="settings" options={{ title: 'Réglages' }} />
-    </Tabs>
+    <View style={{ flex: 1 }}>
+      <UpdateNotificationToast />
+      <Tabs
+        tabBar={(props) => <CustomTabBar {...props} />}
+        screenOptions={{
+          headerShown: false,
+        }}
+      >
+        <Tabs.Screen name="index" options={{ title: 'Aperçu' }} />
+        <Tabs.Screen name="transactions" options={{ title: 'Opérations' }} />
+        <Tabs.Screen name="recurrences" options={{ title: 'Fixes' }} />
+        <Tabs.Screen name="settings" options={{ title: 'Réglages' }} />
+      </Tabs>
+    </View>
   );
 }
 
