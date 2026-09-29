@@ -7,6 +7,7 @@ import {
   Pressable,
   TextInput,
   Modal,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -28,7 +29,6 @@ import {
   Trash2,
   Calendar,
   Repeat,
-  Share2,
 } from 'lucide-react-native';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -204,6 +204,32 @@ export default function SettingsScreen() {
       const payload = exportData();
       const jsonString = JSON.stringify(payload, null, 2);
 
+      // On Android: Use StorageAccessFramework to download directly into the user's chosen folder (e.g. Téléchargements)
+      if (Platform.OS === 'android' && FileSystem.StorageAccessFramework) {
+        try {
+          const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+          if (permissions.granted) {
+            const fileName = `wallou-backup-${new Date().toISOString().slice(0, 10)}`;
+            const fileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+              permissions.directoryUri,
+              fileName,
+              'application/json'
+            );
+            await FileSystem.writeAsStringAsync(fileUri, jsonString, {
+              encoding: FileSystem.EncodingType.UTF8,
+            });
+            showSuccess(
+              'Sauvegarde téléchargée',
+              'Le fichier JSON de sauvegarde a bien été enregistré dans votre dossier.'
+            );
+            return;
+          }
+        } catch (safErr) {
+          console.warn('StorageAccessFramework failed, fallback to native sharing:', safErr);
+        }
+      }
+
+      // Fallback for iOS or if StorageAccessFramework was declined/unavailable
       const isShareAvailable = await Sharing.isAvailableAsync().catch(() => false);
       const cacheDir = FileSystem.cacheDirectory;
 
@@ -214,8 +240,8 @@ export default function SettingsScreen() {
         });
 
         await Sharing.shareAsync(fileUri, {
-          mimeType: '*/*',
-          dialogTitle: 'Partager ma sauvegarde Wallou',
+          mimeType: 'application/json',
+          dialogTitle: 'Enregistrer la sauvegarde Wallou',
           UTI: 'public.json',
         });
       } else {
@@ -225,7 +251,7 @@ export default function SettingsScreen() {
       }
     } catch (err: any) {
       console.error('Export failed:', err);
-      showError('Erreur d’export', err?.message || 'Impossible d’exporter les données.');
+      showError('Erreur de téléchargement', err?.message || 'Impossible d’enregistrer les données.');
     }
   };
 
@@ -1053,13 +1079,13 @@ export default function SettingsScreen() {
           ]}
         >
           <View style={styles.actionLeft}>
-            <Share2 size={18} color={theme.colors.pillar.savings} />
+            <Download size={18} color={theme.colors.pillar.savings} />
             <View style={{ marginLeft: 12 }}>
               <Text style={[theme.typography.body, { color: theme.colors.text.primary, fontWeight: '600' }]}>
-                Partager la sauvegarde (JSON)
+                Télécharger la sauvegarde (JSON)
               </Text>
               <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
-                Partager via WhatsApp, Drive, Mail ou enregistrer
+                Enregistrer le fichier de sauvegarde sur votre appareil
               </Text>
             </View>
           </View>
