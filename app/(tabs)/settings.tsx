@@ -349,7 +349,7 @@ export default function SettingsScreen() {
   const handleCheckUpdate = async () => {
     setIsCheckingUpdate(true);
     try {
-      const release = await checkForUpdate('1.1.0');
+      const release = await checkForUpdate('1.1.1');
       if (release.isAvailable && release.downloadUrl) {
         showDialog({
           title: 'Mise à jour disponible !',
@@ -367,13 +367,13 @@ export default function SettingsScreen() {
       } else {
         showSuccess(
           'À jour',
-          'Vous utilisez déjà la dernière version de Wallou (1.1.0).'
+          'Vous utilisez déjà la dernière version de Wallou (1.1.1).'
         );
       }
     } catch {
       showSuccess(
         'Information',
-        'Wallou est à jour (Version 1.1.0).'
+        'Wallou est à jour (Version 1.1.1).'
       );
     } finally {
       setIsCheckingUpdate(false);
@@ -1175,7 +1175,7 @@ export default function SettingsScreen() {
             Wallou
           </Text>
           <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
-            v1.1.0
+            v1.1.1
           </Text>
         </View>
 
