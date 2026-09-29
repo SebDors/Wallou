@@ -218,10 +218,14 @@ export default function DashboardScreen() {
     setTimeout(() => setRefreshing(false), 300);
   };
 
-  // Recent transactions preview (most recent 4-5)
-  const recentTransactions = [...summary.transactions]
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5);
+  // Recent transactions preview (most recent 4-5, strictly past or today's executed operations)
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const recentTransactions = useMemo(() => {
+    return [...summary.transactions]
+      .filter((t) => t.date && t.date.slice(0, 10) <= todayIso)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5);
+  }, [summary.transactions, todayIso]);
 
   const getPillarColor = (pillarId?: PillarId) => {
     if (!pillarId) return theme.colors.status.income;

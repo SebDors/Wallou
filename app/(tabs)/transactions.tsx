@@ -106,10 +106,11 @@ export default function TransactionsScreen() {
     return result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, activeFilter, searchQuery]);
 
-  // Group by date with future/upcoming distinction
+  // Group by date with future/upcoming distinction within 3 days and dual delimiters
   const groupedSections = useMemo(() => {
     const now = new Date();
     const todayStr = now.toISOString().slice(0, 10);
+    const dNow = new Date(todayStr + 'T00:00:00Z');
 
     const yesterday = new Date(now);
     yesterday.setDate(now.getDate() - 1);
@@ -124,7 +125,16 @@ export default function TransactionsScreen() {
 
     const groupMap = new Map<string, DateGroup>();
 
-    for (const tx of filteredTransactions) {
+    // Filter: include all past/today transactions, but only future transactions within 3 days
+    const eligibleTransactions = filteredTransactions.filter((tx) => {
+      const txDateStr = tx.date ? tx.date.slice(0, 10) : todayStr;
+      if (txDateStr <= todayStr) return true;
+      const dTarget = new Date(txDateStr + 'T00:00:00Z');
+      const diffDays = Math.round((dTarget.getTime() - dNow.getTime()) / (24 * 3600 * 1000));
+      return diffDays <= 3;
+    });
+
+    for (const tx of eligibleTransactions) {
       const txDateStr = tx.date ? tx.date.slice(0, 10) : todayStr;
       let label: string;
       const isFuture = txDateStr > todayStr;
@@ -154,28 +164,37 @@ export default function TransactionsScreen() {
     }
 
     const hasFuture = Array.from(groupMap.values()).some((g) => g.isFuture);
+    let foundFirstFuture = false;
     let foundFirstNonFuture = false;
 
     const sections: {
       title: string;
       dateStr: string;
       isFuture: boolean;
-      hasDelimiterAbove: boolean;
+      delimiterText?: string;
       data: Transaction[];
     }[] = [];
 
     for (const group of groupMap.values()) {
-      let hasDelimiterAbove = false;
-      // Position delimiter directly above the first non-future section (e.g. Aujourd'hui)
+      let delimiterText: string | undefined;
+
+      // 1. Delimiter above first future section
+      if (group.isFuture && !foundFirstFuture) {
+        delimiterText = 'Prochaines dépenses';
+        foundFirstFuture = true;
+      }
+
+      // 2. Delimiter above first realized section (only if there are future sections)
       if (hasFuture && !group.isFuture && !foundFirstNonFuture) {
-        hasDelimiterAbove = true;
+        delimiterText = 'Dépenses réalisées';
         foundFirstNonFuture = true;
       }
+
       sections.push({
         title: group.title,
         dateStr: group.dateStr,
         isFuture: group.isFuture,
-        hasDelimiterAbove,
+        delimiterText,
         data: group.data,
       });
     }
@@ -325,11 +344,11 @@ export default function TransactionsScreen() {
         showsVerticalScrollIndicator={false}
         renderSectionHeader={({ section }) => (
           <View style={{ backgroundColor: theme.colors.bg.canvas }}>
-            {section.hasDelimiterAbove && (
+            {section.delimiterText && (
               <View style={styles.upcomingDelimiter}>
                 <View style={[styles.delimiterLine, { backgroundColor: theme.colors.border.subtle }]} />
                 <Text style={[styles.delimiterText, { color: theme.colors.text.secondary }]}>
-                  Prochaines dépenses
+                  {section.delimiterText}
                 </Text>
                 <View style={[styles.delimiterLine, { backgroundColor: theme.colors.border.subtle }]} />
               </View>

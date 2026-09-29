@@ -80,7 +80,14 @@ export default function RecurrencesScreen() {
     return { fixedIncome, fixedExpenses, netFixed, ratioCommitment };
   }, [recurring]);
 
-  // Filtered recurring items
+  const startDay = settings?.startDayOfMonth || 1;
+
+  const getCycleOrder = (dayOfMonth: number) => {
+    if (startDay <= 1) return dayOfMonth;
+    return dayOfMonth >= startDay ? dayOfMonth - startDay : dayOfMonth - startDay + 100;
+  };
+
+  // Filtered recurring items sorted by cycle chronology
   const filteredItems = useMemo(() => {
     let result = [...recurring];
     if (activeTab === 'expense') {
@@ -88,8 +95,8 @@ export default function RecurrencesScreen() {
     } else if (activeTab === 'income') {
       result = result.filter((r) => r.type === 'income');
     }
-    return result.sort((a, b) => a.dayOfMonth - b.dayOfMonth);
-  }, [recurring, activeTab]);
+    return result.sort((a, b) => getCycleOrder(a.dayOfMonth) - getCycleOrder(b.dayOfMonth));
+  }, [recurring, activeTab, startDay]);
 
   const openAddModal = () => {
     setEditingItem(null);
