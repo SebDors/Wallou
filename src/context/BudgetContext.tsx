@@ -181,12 +181,15 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     }
 
+    const todayStr = new Date().toISOString().slice(0, 10);
+
     return calculateBudgetPeriodSummary(
       transactions,
       settings.ratios,
       currentPeriodKey,
       startingBalance,
-      startDay
+      startDay,
+      todayStr
     );
   }, [
     transactions,

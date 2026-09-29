@@ -189,6 +189,11 @@ export default function DashboardScreen() {
     const dTarget = new Date(nextDateStr + 'T00:00:00Z');
     const diff = Math.round((dTarget.getTime() - dNow.getTime()) / (24 * 3600 * 1000));
 
+    // Only show next expense if it falls within the next 3 days
+    if (diff < 0 || diff > 3) {
+      return null;
+    }
+
     let relativeLabel: string;
     if (diff === 0) {
       relativeLabel = `Aujourd'hui - Jour ${nextItem.dayInCycle}`;
@@ -661,7 +666,7 @@ export default function DashboardScreen() {
               { color: theme.colors.text.secondary, fontWeight: '500' },
             ]}
           >
-            Aucune dépense en attente ce mois-ci • Budget serein !
+            Aucune dépense dans les 3 prochains jours • Budget serein !
           </Text>
         </View>
       )}

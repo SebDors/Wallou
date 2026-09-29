@@ -171,7 +171,8 @@ export function calculateBudgetPeriodSummary(
   ratios: BudgetRatios,
   periodKey: string,
   startingBalance: number = 0,
-  startDayOfMonth: number = 1
+  startDayOfMonth: number = 1,
+  asOfDateIso?: string
 ): BudgetPeriodSummary {
   const periodTransactions = transactions.filter(
     (t) => t.date && isDateInPeriod(t.date, periodKey, startDayOfMonth)
@@ -199,6 +200,12 @@ export function calculateBudgetPeriodSummary(
   }
 
   for (const t of periodTransactions) {
+    const txDayStr = t.date ? t.date.slice(0, 10) : '';
+    // If asOfDateIso is provided, exclude future transactions from actual live spend/income
+    if (asOfDateIso && txDayStr > asOfDateIso) {
+      continue;
+    }
+
     const amount = typeof t.amount === 'number' && !isNaN(t.amount) && t.amount > 0 ? t.amount : 0;
     if (t.type === 'income') {
       totalIncome += amount;

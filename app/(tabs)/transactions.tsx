@@ -153,26 +153,29 @@ export default function TransactionsScreen() {
       groupMap.get(txDateStr)!.data.push(tx);
     }
 
-    let foundFirstFuture = false;
+    const hasFuture = Array.from(groupMap.values()).some((g) => g.isFuture);
+    let foundFirstNonFuture = false;
+
     const sections: {
       title: string;
       dateStr: string;
       isFuture: boolean;
-      isFirstFuture: boolean;
+      hasDelimiterAbove: boolean;
       data: Transaction[];
     }[] = [];
 
     for (const group of groupMap.values()) {
-      let isFirstFuture = false;
-      if (group.isFuture && !foundFirstFuture) {
-        isFirstFuture = true;
-        foundFirstFuture = true;
+      let hasDelimiterAbove = false;
+      // Position delimiter directly above the first non-future section (e.g. Aujourd'hui)
+      if (hasFuture && !group.isFuture && !foundFirstNonFuture) {
+        hasDelimiterAbove = true;
+        foundFirstNonFuture = true;
       }
       sections.push({
         title: group.title,
         dateStr: group.dateStr,
         isFuture: group.isFuture,
-        isFirstFuture,
+        hasDelimiterAbove,
         data: group.data,
       });
     }
@@ -322,7 +325,7 @@ export default function TransactionsScreen() {
         showsVerticalScrollIndicator={false}
         renderSectionHeader={({ section }) => (
           <View style={{ backgroundColor: theme.colors.bg.canvas }}>
-            {section.isFirstFuture && (
+            {section.hasDelimiterAbove && (
               <View style={styles.upcomingDelimiter}>
                 <View style={[styles.delimiterLine, { backgroundColor: theme.colors.border.subtle }]} />
                 <Text style={[styles.delimiterText, { color: theme.colors.text.secondary }]}>
