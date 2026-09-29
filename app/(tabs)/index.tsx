@@ -139,7 +139,7 @@ export default function DashboardScreen() {
         );
         const txDateStr = txDateIso.slice(0, 10);
 
-        if (txDateStr >= todayStr) {
+        if (txDateStr > todayStr) {
           const alreadyExecuted = summary.transactions.some(
             (tx) => tx.recurringId === item.id && tx.date && tx.date.slice(0, 10) === txDateStr
           );
@@ -158,11 +158,11 @@ export default function DashboardScreen() {
       }
     }
 
-    // 2. Also check planned/future expense transactions in this cycle
+    // 2. Also check planned/future expense transactions in this cycle (strictly future)
     for (const tx of summary.transactions) {
       if (tx.type !== 'expense' || !tx.date) continue;
       const txDateStr = tx.date.slice(0, 10);
-      if (txDateStr >= todayStr) {
+      if (txDateStr > todayStr) {
         const txTime = new Date(tx.date).getTime();
         const dayInCycle = Math.floor((txTime - startDate.getTime()) / (24 * 3600 * 1000)) + 1;
         const alreadyIn = candidates.some((c) => c.title === tx.title && c.dateIso.slice(0, 10) === txDateStr);
@@ -189,20 +189,16 @@ export default function DashboardScreen() {
     const dTarget = new Date(nextDateStr + 'T00:00:00Z');
     const diff = Math.round((dTarget.getTime() - dNow.getTime()) / (24 * 3600 * 1000));
 
-    // Only show next expense if it falls within the next 3 days
-    if (diff < 0 || diff > 3) {
+    // Only show next expense if it falls strictly in the upcoming 1 to 3 days (Demain to J+3)
+    if (diff < 1 || diff > 3) {
       return null;
     }
 
     let relativeLabel: string;
-    if (diff === 0) {
-      relativeLabel = `Aujourd'hui - Jour ${nextItem.dayInCycle}`;
-    } else if (diff === 1) {
+    if (diff === 1) {
       relativeLabel = `Demain - Jour ${nextItem.dayInCycle}`;
-    } else if (diff > 1) {
-      relativeLabel = `Dans ${diff} jours`;
     } else {
-      relativeLabel = `Jour ${nextItem.dayInCycle}`;
+      relativeLabel = `Dans ${diff} jours - Jour ${nextItem.dayInCycle}`;
     }
 
     return {
