@@ -28,6 +28,7 @@ import {
   Trash2,
   Calendar,
   Repeat,
+  Share2,
 } from 'lucide-react-native';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -207,14 +208,14 @@ export default function SettingsScreen() {
       const cacheDir = FileSystem.cacheDirectory;
 
       if (cacheDir && isShareAvailable) {
-        const fileUri = `${cacheDir}gestionapp-backup-${Date.now()}.json`;
+        const fileUri = `${cacheDir}wallou-backup-${Date.now()}.json`;
         await FileSystem.writeAsStringAsync(fileUri, jsonString, {
           encoding: FileSystem.EncodingType.UTF8,
         });
 
         await Sharing.shareAsync(fileUri, {
-          mimeType: 'application/json',
-          dialogTitle: 'Exporter ma sauvegarde GestionApp',
+          mimeType: '*/*',
+          dialogTitle: 'Partager ma sauvegarde Wallou',
           UTI: 'public.json',
         });
       } else {
@@ -1052,13 +1053,13 @@ export default function SettingsScreen() {
           ]}
         >
           <View style={styles.actionLeft}>
-            <Download size={18} color={theme.colors.pillar.savings} />
+            <Share2 size={18} color={theme.colors.pillar.savings} />
             <View style={{ marginLeft: 12 }}>
               <Text style={[theme.typography.body, { color: theme.colors.text.primary, fontWeight: '600' }]}>
-                Exporter les données (JSON)
+                Partager la sauvegarde (JSON)
               </Text>
               <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
-                Sauvegarde hermétique et partageable
+                Partager via WhatsApp, Drive, Mail ou enregistrer
               </Text>
             </View>
           </View>
