@@ -356,6 +356,7 @@ export default function SettingsScreen() {
           title: 'Mise à jour disponible !',
           message: `Version ${release.version}\n\n${release.releaseNotes}`,
           variant: 'info',
+          scrollable: true,
           buttons: [
             { text: 'Plus tard', style: 'cancel' },
             {

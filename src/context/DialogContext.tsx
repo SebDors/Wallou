@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, StyleSheet, Modal, Pressable, TouchableWithoutFeedback, ScrollView } from 'react-native';
 import { CheckCircle2, AlertTriangle, AlertCircle, Info, X } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from './ThemeContext';
@@ -17,6 +17,7 @@ export interface DialogOptions {
   message?: string;
   variant?: DialogVariant;
   buttons?: DialogButton[];
+  scrollable?: boolean;
 }
 
 interface DialogContextValue {
@@ -137,6 +138,11 @@ export const DialogProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     ? options.buttons
     : [{ text: 'OK', style: 'default' as const, onPress: hideDialog }];
 
+  const isLongMessage = Boolean(
+    options.scrollable ||
+    (options.message && (options.message.length > 100 || options.message.includes('\n')))
+  );
+
   return (
     <DialogContext.Provider
       value={{ showDialog, hideDialog, showSuccess, showError, showConfirm }}
@@ -191,22 +197,56 @@ export const DialogProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 </View>
 
                 {/* Message Body */}
-                {Boolean(options.message) && (
-                  <Text
-                    style={[
-                      theme.typography.body,
-                      {
-                        color: theme.colors.text.secondary,
-                        textAlign: 'center',
-                        marginTop: 8,
-                        marginBottom: 20,
-                        lineHeight: 20,
-                      },
-                    ]}
-                  >
-                    {options.message}
-                  </Text>
-                )}
+                {Boolean(options.message) &&
+                  (isLongMessage ? (
+                    <View
+                      style={[
+                        styles.scrollBoxContainer,
+                        {
+                          backgroundColor: theme.colors.bg.surfaceSubtle,
+                          borderColor: theme.colors.border.subtle,
+                          borderRadius: theme.radii.md,
+                        },
+                      ]}
+                    >
+                      <ScrollView
+                        style={styles.messageScrollView}
+                        contentContainerStyle={styles.messageScrollContent}
+                        showsVerticalScrollIndicator={true}
+                        nestedScrollEnabled={true}
+                        persistentScrollbar={true}
+                      >
+                        <Text
+                          style={[
+                            theme.typography.body,
+                            {
+                              color: theme.colors.text.secondary,
+                              textAlign: 'left',
+                              lineHeight: 20,
+                              fontSize: 13,
+                            },
+                          ]}
+                        >
+                          {options.message}
+                        </Text>
+                      </ScrollView>
+                    </View>
+                  ) : (
+                    <Text
+                      style={[
+                        theme.typography.body,
+                        {
+                          color: theme.colors.text.secondary,
+                          textAlign: 'center',
+                          marginTop: 8,
+                          marginBottom: 20,
+                          lineHeight: 20,
+                        },
+                      ]}
+                    >
+                      {options.message}
+                    </Text>
+                  ))}
 
                 {/* Action Buttons */}
                 <View style={[styles.buttonsRow, !options.message && { marginTop: 20 }]}>
@@ -284,6 +324,7 @@ const styles = StyleSheet.create({
   modalBox: {
     width: '100%',
     maxWidth: 380,
+    maxHeight: '85%',
     borderWidth: 1,
     padding: 20,
     shadowColor: '#000',
@@ -291,6 +332,21 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     shadowRadius: 16,
     elevation: 8,
+  },
+  scrollBoxContainer: {
+    maxHeight: 240,
+    width: '100%',
+    borderWidth: 1,
+    marginTop: 12,
+    marginBottom: 16,
+    padding: 10,
+  },
+  messageScrollView: {
+    maxHeight: 220,
+  },
+  messageScrollContent: {
+    paddingVertical: 2,
+    paddingHorizontal: 4,
   },
   header: {
     alignItems: 'center',
