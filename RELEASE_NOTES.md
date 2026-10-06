@@ -1,18 +1,17 @@
-# 🚀 Wallou — Version 1.2.3
+# 🚀 Wallou — Version 1.2.4
 
-Bienvenue sur la mise à jour **1.2.3** de **Wallou** ! Cette version enrichit l'onglet des opérations avec un filtrage granulaire par catégorie.
+Bienvenue sur la mise à jour **1.2.4** de **Wallou** ! Ce patch affine le système de pastilles de catégories dans l'onglet des opérations.
 
 ---
 
-## 🌟 Nouveautés & Améliorations de la Version 1.2.3
+## 🌟 Nouveautés & Corrections de la Version 1.2.4
 
-### 🏷️ Filtrage par Catégorie dans la Liste des Opérations
-* **Badges compacts et dédiés** : Juste en dessous des filtres principaux (Besoins, Envies, Épargne, Revenus), une rangée discrète de pastilles permet désormais de filtrer instantanément par catégorie.
-* **Compteurs par catégorie** : Chaque catégorie affiche entre parenthèses son nombre d'opérations associées (ex. *Voiture (4)*, *Courses (2)*, *Loyer (1)*).
-* **Isolation ciblée des dépenses** : Touchez par exemple la pastille **Voiture** pour isoler et consulter l'ensemble des dépenses liées à votre véhicule en un instant.
-* **Défilement horizontal fluide** : Si vous utilisez de nombreuses catégories, la rangée défile horizontalement de manière fluide sans encombrer la vue.
+### 🎯 Alignement Exclusif sur vos Catégories des Paramètres
+* **Affichage de vos catégories personnalisées** : La rangée de pastilles de filtrage dans l'onglet *Opérations* affiche désormais **strictement et exclusivement les catégories que vous avez configurées dans vos Réglages** (par exemple *Voiture*, *Maison*, etc.).
+* **Suppression des étiquettes génériques parasites** : Élimination définitive des libellés système automatiques (« Besoins », « Envies », « Charge fixe », « Revenu fixe ») qui encombraient la barre de filtres.
+* **Compteurs réels & Filtrage direct** : Vos catégories apparaissent avec leur compteur précis d'opérations et vous permettent d'isoler en un simple tap l'ensemble des dépenses qui leur sont rattachées.
 
 ---
 
 ### 📱 Installation de l'APK Android
-Téléchargez le fichier `Wallou-v1.2.3.apk` ci-dessous et installez-le directement sur votre appareil Android.
+Téléchargez le fichier `Wallou-v1.2.4.apk` ci-dessous et installez-le directement sur votre appareil Android.
