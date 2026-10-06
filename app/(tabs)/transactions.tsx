@@ -44,7 +44,7 @@ export default function TransactionsScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const params = useLocalSearchParams<{ filter?: string }>();
-  const { transactions, deleteTransaction, updateTransaction, settings } = useBudget();
+  const { transactions, deleteTransaction, updateTransaction, settings, categories } = useBudget();
   const { openQuickEntry } = useQuickEntry();
   const { showConfirm } = useDialog();
 
@@ -79,8 +79,10 @@ export default function TransactionsScreen() {
     };
   }, [transactions]);
 
-  // Available categories for the currently active filter, with count of transactions
+  // Available categories strictly matching user-defined categories from Settings
   const availableCategories = useMemo(() => {
+    if (!categories || categories.length === 0) return [];
+
     let base = transactions.filter((t) => t.type !== 'refund');
     if (activeFilter === 'needs') {
       base = base.filter((t) => t.pillarId === 'needs');
@@ -92,18 +94,16 @@ export default function TransactionsScreen() {
       base = base.filter((t) => t.type === 'income');
     }
 
-    const countsMap = new Map<string, number>();
-    for (const tx of base) {
-      const cat = (tx.category || '').trim();
-      if (cat) {
-        countsMap.set(cat, (countsMap.get(cat) || 0) + 1);
-      }
-    }
-
-    return Array.from(countsMap.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'fr'));
-  }, [transactions, activeFilter]);
+    return categories
+      .map((catName) => {
+        const clean = (catName || '').trim();
+        const count = base.filter(
+          (t) => (t.category || '').toLowerCase().trim() === clean.toLowerCase()
+        ).length;
+        return { name: clean, count };
+      })
+      .filter((c) => c.name.length > 0);
+  }, [categories, transactions, activeFilter]);
 
   // If selected category is no longer present in available categories, reset to all
   useEffect(() => {
