@@ -8,6 +8,7 @@ import {
   Pressable,
   Modal,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -22,6 +23,7 @@ import {
   PiggyBank,
   ArrowUpCircle,
   RotateCcw,
+  Tag,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../src/context/ThemeContext';
@@ -53,6 +55,7 @@ export default function TransactionsScreen() {
     }
     return 'all';
   });
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   useEffect(() => {
     if (params.filter && ['all', 'needs', 'wants', 'savings', 'income'].includes(params.filter)) {
@@ -76,6 +79,39 @@ export default function TransactionsScreen() {
     };
   }, [transactions]);
 
+  // Available categories for the currently active filter, with count of transactions
+  const availableCategories = useMemo(() => {
+    let base = transactions.filter((t) => t.type !== 'refund');
+    if (activeFilter === 'needs') {
+      base = base.filter((t) => t.pillarId === 'needs');
+    } else if (activeFilter === 'wants') {
+      base = base.filter((t) => t.pillarId === 'wants');
+    } else if (activeFilter === 'savings') {
+      base = base.filter((t) => t.pillarId === 'savings');
+    } else if (activeFilter === 'income') {
+      base = base.filter((t) => t.type === 'income');
+    }
+
+    const countsMap = new Map<string, number>();
+    for (const tx of base) {
+      const cat = (tx.category || '').trim();
+      if (cat) {
+        countsMap.set(cat, (countsMap.get(cat) || 0) + 1);
+      }
+    }
+
+    return Array.from(countsMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'fr'));
+  }, [transactions, activeFilter]);
+
+  // If selected category is no longer present in available categories, reset to all
+  useEffect(() => {
+    if (selectedCategory && !availableCategories.some((c) => c.name.toLowerCase() === selectedCategory.toLowerCase())) {
+      setSelectedCategory(null);
+    }
+  }, [availableCategories, selectedCategory]);
+
   // Filtered transactions (excluding phantom refund transactions)
   const filteredTransactions = useMemo(() => {
     let result = transactions.filter((t) => t.type !== 'refund');
@@ -91,6 +127,13 @@ export default function TransactionsScreen() {
       result = result.filter((t) => t.type === 'income');
     }
 
+    // Filter by selected category
+    if (selectedCategory) {
+      result = result.filter(
+        (t) => (t.category || '').toLowerCase().trim() === selectedCategory.toLowerCase().trim()
+      );
+    }
+
     // Filter by search query (safe case-insensitive match)
     if (searchQuery.trim().length > 0) {
       const q = searchQuery.toLowerCase().trim();
@@ -104,7 +147,7 @@ export default function TransactionsScreen() {
 
     // Chronological order: newest first
     return result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [transactions, activeFilter, searchQuery]);
+  }, [transactions, activeFilter, selectedCategory, searchQuery]);
 
   // Group by date with future/upcoming distinction within 3 days and dual delimiters
   const groupedSections = useMemo(() => {
@@ -328,6 +371,115 @@ export default function TransactionsScreen() {
             onPress={() => setActiveFilter('income')}
           />
         </View>
+
+        {/* Category Filter Pills (Smaller, discreet secondary chips) */}
+        {availableCategories.length > 0 && (
+          <View style={styles.categoryFilterRow}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryScrollContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              <Pressable
+                onPress={() => {
+                  setSelectedCategory(null);
+                  try {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  } catch {}
+                }}
+                style={[
+                  styles.categoryPill,
+                  {
+                    backgroundColor:
+                      selectedCategory === null
+                        ? theme.colors.pillar.savings
+                        : theme.colors.bg.surfaceSubtle,
+                    borderColor:
+                      selectedCategory === null
+                        ? theme.colors.pillar.savings
+                        : theme.colors.border.subtle,
+                    borderRadius: theme.radii.full,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.categoryPillText,
+                    {
+                      color:
+                        selectedCategory === null
+                          ? '#FFFFFF'
+                          : theme.colors.text.secondary,
+                      fontWeight: selectedCategory === null ? '700' : '500',
+                    },
+                  ]}
+                >
+                  Toutes
+                </Text>
+              </Pressable>
+
+              {availableCategories.map((cat) => {
+                const isSelected =
+                  selectedCategory?.toLowerCase() === cat.name.toLowerCase();
+                return (
+                  <Pressable
+                    key={cat.name}
+                    onPress={() => {
+                      setSelectedCategory(isSelected ? null : cat.name);
+                      try {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      } catch {}
+                    }}
+                    style={[
+                      styles.categoryPill,
+                      {
+                        backgroundColor: isSelected
+                          ? theme.colors.pillar.savings
+                          : theme.colors.bg.surfaceSubtle,
+                        borderColor: isSelected
+                          ? theme.colors.pillar.savings
+                          : theme.colors.border.subtle,
+                        borderRadius: theme.radii.full,
+                      },
+                    ]}
+                  >
+                    <Tag
+                      size={10}
+                      color={isSelected ? '#FFFFFF' : theme.colors.text.muted}
+                      style={{ marginRight: 4 }}
+                    />
+                    <Text
+                      style={[
+                        styles.categoryPillText,
+                        {
+                          color: isSelected
+                            ? '#FFFFFF'
+                            : theme.colors.text.secondary,
+                          fontWeight: isSelected ? '700' : '500',
+                        },
+                      ]}
+                    >
+                      {cat.name}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.categoryPillCount,
+                        {
+                          color: isSelected
+                            ? 'rgba(255,255,255,0.85)'
+                            : theme.colors.text.muted,
+                        },
+                      ]}
+                    >
+                      {cat.count}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
       </View>
 
       {/* Grouped Chronological List */}
@@ -566,6 +718,31 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     marginTop: 12,
+  },
+  categoryFilterRow: {
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  categoryScrollContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingRight: 16,
+  },
+  categoryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 9,
+    borderWidth: 1,
+  },
+  categoryPillText: {
+    fontSize: 11,
+  },
+  categoryPillCount: {
+    fontSize: 10,
+    marginLeft: 4,
+    fontWeight: '600',
   },
   listContent: {
     paddingTop: 8,
