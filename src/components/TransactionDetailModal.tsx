@@ -60,6 +60,17 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
     }
   }, [transaction, startEditing, visible]);
 
+  const allDisplayCategories = React.useMemo(() => {
+    const list = [...(categories || [])];
+    if (editCategory && !list.includes(editCategory)) {
+      const isDefaultPillar = ['Besoins', 'Envies', 'Épargne', 'Revenu', 'Remboursement'].includes(editCategory);
+      if (!isDefaultPillar) {
+        list.push(editCategory);
+      }
+    }
+    return list;
+  }, [categories, editCategory]);
+
   if (!transaction) return null;
 
   const currency = settings?.currency || '€';
@@ -109,17 +120,6 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
       true
     );
   };
-
-  const allDisplayCategories = React.useMemo(() => {
-    const list = [...(categories || [])];
-    if (editCategory && !list.includes(editCategory)) {
-      const isDefaultPillar = ['Besoins', 'Envies', 'Épargne', 'Revenu', 'Remboursement'].includes(editCategory);
-      if (!isDefaultPillar) {
-        list.push(editCategory);
-      }
-    }
-    return list;
-  }, [categories, editCategory]);
 
   const handleSaveEdit = async () => {
     const parsed = parseFloat(editAmount.replace(',', '.'));
