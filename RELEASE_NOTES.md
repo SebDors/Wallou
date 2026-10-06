@@ -1,17 +1,17 @@
-# 🚀 Wallou — Version 1.2.5
+# 🚀 Wallou — Version 1.2.6
 
-Bienvenue sur la mise à jour **1.2.5** de **Wallou** ! Cette version apporte une simplification majeure dans la gestion des remboursements partagés.
+Bienvenue sur la mise à jour **1.2.6** de **Wallou** ! Cette version permet désormais de modifier librement la catégorie de n'importe quelle opération existante.
 
 ---
 
-## 🌟 Nouveautés & Améliorations de la Version 1.2.5
+## 🌟 Nouveautés & Améliorations de la Version 1.2.6
 
-### 🤝 Remboursement Rapide de la Moitié (50 %)
-* **Nouveau bouton 1-tap « Rembourser la moitié »** : Lors de la consultation du détail d'une opération, un nouveau raccourci pré-remplit instantanément le montant avec la moitié exacte de la dépense (idéal pour les dépenses partagées à deux, sorties, restos, courses).
-* **Calcul automatique au centime près** : Le montant calculé est directement affiché sur le bouton (ex: *Rembourser la moitié (25,00 €)*) pour une validation immédiate en un seul geste.
-* **Flexibilité préservée** : Vous conservez toujours les options de remboursement total (« Rembourser la totalité ») ou de saisie d'un montant personnalisé au centime près.
+### 🏷️ Modification de la Catégorie d'une Opération
+* **Sélecteur de catégorie en mode édition** : Lors de la modification d'une transaction, vous pouvez désormais choisir parmi vos catégories personnalisées (ou en ajouter une à la volée) sous forme de pastilles cliquables.
+* **Affichage de la catégorie dans la fiche détaillée** : La catégorie associée à l'opération est désormais clairement affichée dans la vue détaillée de la transaction.
+* **Navigation fluide et défilement optimisé** : La fenêtre d'édition intègre un défilement vertical fluide, garantissant un accès ergonomique à tous les champs et boutons même avec le clavier virtuel ouvert.
 
 ---
 
 ### 📱 Installation de l'APK Android
-Téléchargez le fichier `Wallou-v1.2.5.apk` ci-dessous et installez-le directement sur votre appareil Android.
+Téléchargez le fichier `Wallou-v1.2.6.apk` ci-dessous et installez-le directement sur votre appareil Android.
