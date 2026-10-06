@@ -277,6 +277,25 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                       </Text>
                     </Pressable>
 
+                    <Pressable
+                      onPress={() => {
+                        const half = Number((transaction.amount / 2).toFixed(2));
+                        setRefundAmount(String(half));
+                      }}
+                      style={[
+                        styles.quickMaxBtn,
+                        {
+                          borderColor: theme.colors.border.subtle,
+                          borderRadius: theme.radii.full,
+                          backgroundColor: theme.colors.bg.surfaceSubtle,
+                        },
+                      ]}
+                    >
+                      <Text style={[theme.typography.caption, { color: theme.colors.pillar.savings, fontWeight: '600' }]}>
+                        Rembourser la moitié ({formatCurrency(Number((transaction.amount / 2).toFixed(2)), currency)})
+                      </Text>
+                    </Pressable>
+
                     {Boolean(transaction.refundedAmount && transaction.refundedAmount > 0) && (
                       <Pressable
                         onPress={() => {
