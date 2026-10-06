@@ -9,8 +9,9 @@ import {
   TouchableWithoutFeedback,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
-import { X, Trash2, Edit3, Home, Coffee, PiggyBank, ArrowUpCircle, RotateCcw } from 'lucide-react-native';
+import { X, Trash2, Edit3, Home, Coffee, PiggyBank, ArrowUpCircle, RotateCcw, Plus } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../context/ThemeContext';
 import { useBudget } from '../context/BudgetContext';
@@ -32,7 +33,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
   startEditing = false,
 }) => {
   const { theme } = useTheme();
-  const { updateTransaction, deleteTransaction, addTransaction, settings } = useBudget();
+  const { updateTransaction, deleteTransaction, addTransaction, settings, categories, addCategory } = useBudget();
   const { showConfirm, showError } = useDialog();
 
   const [isEditing, setIsEditing] = useState(startEditing);
@@ -41,12 +42,18 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
   const [editTitle, setEditTitle] = useState('');
   const [editAmount, setEditAmount] = useState('');
   const [editPillar, setEditPillar] = useState<PillarId>('needs');
+  const [editCategory, setEditCategory] = useState<string>('');
+  const [isAddingCategory, setIsAddingCategory] = useState<boolean>(false);
+  const [newCategoryName, setNewCategoryName] = useState<string>('');
 
   React.useEffect(() => {
     if (transaction) {
       setEditTitle(transaction.title);
       setEditAmount(String(transaction.amount));
       setEditPillar(transaction.pillarId || 'needs');
+      setEditCategory(transaction.category || '');
+      setIsAddingCategory(false);
+      setNewCategoryName('');
       setIsEditing(startEditing);
       setIsRefunding(false);
       setRefundAmount('');
@@ -103,6 +110,17 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
     );
   };
 
+  const allDisplayCategories = React.useMemo(() => {
+    const list = [...(categories || [])];
+    if (editCategory && !list.includes(editCategory)) {
+      const isDefaultPillar = ['Besoins', 'Envies', 'Épargne', 'Revenu', 'Remboursement'].includes(editCategory);
+      if (!isDefaultPillar) {
+        list.push(editCategory);
+      }
+    }
+    return list;
+  }, [categories, editCategory]);
+
   const handleSaveEdit = async () => {
     const parsed = parseFloat(editAmount.replace(',', '.'));
     if (isNaN(parsed) || parsed <= 0) {
@@ -114,11 +132,25 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch {}
 
+    const effectivePillar = transaction.type !== 'income' ? editPillar : undefined;
+    const finalCategory =
+      editCategory.trim() ||
+      (transaction.type === 'refund'
+        ? 'Remboursement'
+        : effectivePillar === 'needs'
+        ? 'Besoins'
+        : effectivePillar === 'wants'
+        ? 'Envies'
+        : effectivePillar === 'savings'
+        ? 'Épargne'
+        : 'Revenu');
+
     await updateTransaction({
       ...transaction,
       title: editTitle.trim() || transaction.title,
       amount: parsed,
-      pillarId: transaction.type !== 'income' ? editPillar : undefined,
+      pillarId: effectivePillar,
+      category: finalCategory,
     });
     onClose();
   };
@@ -408,6 +440,13 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                   )}
 
                   <View style={styles.detailRow}>
+                    <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>Catégorie</Text>
+                    <Text style={[theme.typography.body, { color: theme.colors.text.primary, fontWeight: '600' }]}>
+                      {transaction.category || (transaction.pillarId ? PILLAR_NAMES[transaction.pillarId] : 'Général')}
+                    </Text>
+                  </View>
+
+                  <View style={styles.detailRow}>
                     <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>Date</Text>
                     <Text style={[theme.typography.body, { color: theme.colors.text.primary }]}>
                       {new Date(transaction.date).toLocaleString('fr-FR', {
@@ -473,7 +512,11 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                 </View>
               ) : (
                 /* Edit Mode */
-                <View style={styles.content}>
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={styles.content}
+                >
                   <Text style={[theme.typography.caption, { color: theme.colors.text.secondary, marginBottom: 4 }]}>
                     Titre
                   </Text>
@@ -581,6 +624,133 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                     </>
                   )}
 
+                  <Text style={[theme.typography.caption, { color: theme.colors.text.secondary, marginTop: 12, marginBottom: 6 }]}>
+                    Catégorie
+                  </Text>
+                  <View style={styles.categorySection}>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.categoryScrollContent}
+                      keyboardShouldPersistTaps="handled"
+                    >
+                      {allDisplayCategories.map((cat) => {
+                        const isSelected = editCategory === cat;
+                        return (
+                          <Pressable
+                            key={cat}
+                            onPress={() => setEditCategory(isSelected ? '' : cat)}
+                            style={[
+                              styles.categoryChip,
+                              {
+                                backgroundColor: isSelected
+                                  ? theme.colors.pillar.savings
+                                  : theme.colors.bg.surfaceSubtle,
+                                borderColor: isSelected
+                                  ? theme.colors.pillar.savings
+                                  : theme.colors.border.subtle,
+                                borderRadius: theme.radii.full,
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                theme.typography.caption,
+                                {
+                                  color: isSelected ? '#FFFFFF' : theme.colors.text.secondary,
+                                  fontWeight: isSelected ? '700' : '500',
+                                },
+                              ]}
+                            >
+                              {cat}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+
+                      {/* Add custom category chip */}
+                      {isAddingCategory ? (
+                        <View style={styles.inlineAddCat}>
+                          <TextInput
+                            value={newCategoryName}
+                            onChangeText={setNewCategoryName}
+                            placeholder="Nom..."
+                            placeholderTextColor={theme.colors.text.muted}
+                            autoFocus
+                            style={[
+                              styles.inlineAddCatInput,
+                              {
+                                color: theme.colors.text.primary,
+                                borderColor: theme.colors.border.subtle,
+                                borderRadius: theme.radii.full,
+                                backgroundColor: theme.colors.bg.surfaceSubtle,
+                              },
+                            ]}
+                          />
+                          <Pressable
+                            onPress={async () => {
+                              const trimmed = newCategoryName.trim();
+                              if (trimmed) {
+                                await addCategory(trimmed);
+                                setEditCategory(trimmed);
+                              }
+                              setNewCategoryName('');
+                              setIsAddingCategory(false);
+                            }}
+                            style={[
+                              styles.inlineAddCatBtn,
+                              {
+                                backgroundColor: theme.colors.pillar.savings,
+                                borderRadius: theme.radii.full,
+                              },
+                            ]}
+                          >
+                            <Plus size={14} color="#FFFFFF" />
+                          </Pressable>
+                          <Pressable
+                            onPress={() => {
+                              setNewCategoryName('');
+                              setIsAddingCategory(false);
+                            }}
+                            style={[
+                              styles.inlineAddCatCancelBtn,
+                              {
+                                backgroundColor: theme.colors.bg.surfaceSubtle,
+                                borderRadius: theme.radii.full,
+                              },
+                            ]}
+                          >
+                            <X size={14} color={theme.colors.text.muted} />
+                          </Pressable>
+                        </View>
+                      ) : (
+                        <Pressable
+                          onPress={() => setIsAddingCategory(true)}
+                          style={[
+                            styles.categoryChip,
+                            {
+                              backgroundColor: theme.colors.bg.surfaceSubtle,
+                              borderColor: theme.colors.border.subtle,
+                              borderRadius: theme.radii.full,
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                            },
+                          ]}
+                        >
+                          <Plus size={12} color={theme.colors.text.secondary} style={{ marginRight: 4 }} />
+                          <Text
+                            style={[
+                              theme.typography.caption,
+                              { color: theme.colors.text.secondary, fontWeight: '600' },
+                            ]}
+                          >
+                            {allDisplayCategories.length === 0 ? 'Ajouter une catégorie' : 'Ajouter'}
+                          </Text>
+                        </Pressable>
+                      )}
+                    </ScrollView>
+                  </View>
+
                   <View style={[styles.actionsRow, { marginTop: 20 }]}>
                     <Pressable
                       onPress={() => setIsEditing(false)}
@@ -602,7 +772,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                       <Text style={[theme.typography.body, { color: '#FFF', fontWeight: '700' }]}>Enregistrer</Text>
                     </Pressable>
                   </View>
-                </View>
+                </ScrollView>
               )}
             </KeyboardAvoidingView>
           </TouchableWithoutFeedback>
@@ -621,6 +791,7 @@ const styles = StyleSheet.create({
   sheet: {
     padding: 20,
     borderTopWidth: 1,
+    maxHeight: '90%',
   },
   headerRow: {
     flexDirection: 'row',
@@ -673,6 +844,48 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingVertical: 10,
+  },
+  categorySection: {
+    marginBottom: 6,
+    height: 36,
+  },
+  categoryScrollContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 2,
+  },
+  categoryChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inlineAddCat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  inlineAddCatInput: {
+    height: 28,
+    paddingHorizontal: 8,
+    paddingVertical: 0,
+    fontSize: 11,
+    borderWidth: 1,
+    minWidth: 80,
+  },
+  inlineAddCatBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inlineAddCatCancelBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   refundHeaderBox: {
     padding: 14,
