@@ -1,17 +1,17 @@
-# 🚀 Wallou — Version 1.2.4
+# 🚀 Wallou — Version 1.2.5
 
-Bienvenue sur la mise à jour **1.2.4** de **Wallou** ! Ce patch affine le système de pastilles de catégories dans l'onglet des opérations.
+Bienvenue sur la mise à jour **1.2.5** de **Wallou** ! Cette version apporte une simplification majeure dans la gestion des remboursements partagés.
 
 ---
 
-## 🌟 Nouveautés & Corrections de la Version 1.2.4
+## 🌟 Nouveautés & Améliorations de la Version 1.2.5
 
-### 🎯 Alignement Exclusif sur vos Catégories des Paramètres
-* **Affichage de vos catégories personnalisées** : La rangée de pastilles de filtrage dans l'onglet *Opérations* affiche désormais **strictement et exclusivement les catégories que vous avez configurées dans vos Réglages** (par exemple *Voiture*, *Maison*, etc.).
-* **Suppression des étiquettes génériques parasites** : Élimination définitive des libellés système automatiques (« Besoins », « Envies », « Charge fixe », « Revenu fixe ») qui encombraient la barre de filtres.
-* **Compteurs réels & Filtrage direct** : Vos catégories apparaissent avec leur compteur précis d'opérations et vous permettent d'isoler en un simple tap l'ensemble des dépenses qui leur sont rattachées.
+### 🤝 Remboursement Rapide de la Moitié (50 %)
+* **Nouveau bouton 1-tap « Rembourser la moitié »** : Lors de la consultation du détail d'une opération, un nouveau raccourci pré-remplit instantanément le montant avec la moitié exacte de la dépense (idéal pour les dépenses partagées à deux, sorties, restos, courses).
+* **Calcul automatique au centime près** : Le montant calculé est directement affiché sur le bouton (ex: *Rembourser la moitié (25,00 €)*) pour une validation immédiate en un seul geste.
+* **Flexibilité préservée** : Vous conservez toujours les options de remboursement total (« Rembourser la totalité ») ou de saisie d'un montant personnalisé au centime près.
 
 ---
 
 ### 📱 Installation de l'APK Android
-Téléchargez le fichier `Wallou-v1.2.4.apk` ci-dessous et installez-le directement sur votre appareil Android.
+Téléchargez le fichier `Wallou-v1.2.5.apk` ci-dessous et installez-le directement sur votre appareil Android.
