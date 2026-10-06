@@ -1,17 +1,16 @@
-# 🚀 Wallou — Version 1.2.6
+# 🚀 Wallou — Version 1.2.7
 
-Bienvenue sur la mise à jour **1.2.6** de **Wallou** ! Cette version permet désormais de modifier librement la catégorie de n'importe quelle opération existante.
+Bienvenue sur la mise à jour **1.2.7** de **Wallou** ! Ce patch résout immédiatement le plantage survenant lors de l'ouverture et de la modification d'une transaction.
 
 ---
 
-## 🌟 Nouveautés & Améliorations de la Version 1.2.6
+## 🌟 Corrections de la Version 1.2.7
 
-### 🏷️ Modification de la Catégorie d'une Opération
-* **Sélecteur de catégorie en mode édition** : Lors de la modification d'une transaction, vous pouvez désormais choisir parmi vos catégories personnalisées (ou en ajouter une à la volée) sous forme de pastilles cliquables.
-* **Affichage de la catégorie dans la fiche détaillée** : La catégorie associée à l'opération est désormais clairement affichée dans la vue détaillée de la transaction.
-* **Navigation fluide et défilement optimisé** : La fenêtre d'édition intègre un défilement vertical fluide, garantissant un accès ergonomique à tous les champs et boutons même avec le clavier virtuel ouvert.
+### ⚡ Correction Critique du Plantage à l'Ouverture / Modification d'une Transaction
+* **Correction des Hooks React** : Résolution du désalignement d'ordre des hooks dans la boîte de dialogue de détail/modification de transaction (*« Rendered more hooks than during the previous render »*).
+* **Stabilité rétablie** : Vous pouvez à nouveau consulter, modifier (titre, montant, pilier, catégorie) et rembourser n'importe quelle opération en toute fluidité sans aucun risque de fermeture inopinée de l'application.
 
 ---
 
 ### 📱 Installation de l'APK Android
-Téléchargez le fichier `Wallou-v1.2.6.apk` ci-dessous et installez-le directement sur votre appareil Android.
+Téléchargez le fichier `Wallou-v1.2.7.apk` ci-dessous et installez-le directement sur votre appareil Android.
