@@ -248,7 +248,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                         { color: theme.colors.pillar.savings, fontWeight: '600' },
                       ]}
                     >
-                      Montant restant remboursable
+                      Montant de la dépense
                     </Text>
                     <Text
                       style={[
@@ -257,11 +257,18 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                         { color: theme.colors.pillar.savings, fontWeight: '700', marginTop: 2 },
                       ]}
                     >
-                      {formatCurrency(
-                        Math.max(0, transaction.amount - (transaction.refundedAmount || 0)),
-                        currency
-                      )}
+                      {formatCurrency(transaction.amount, currency)}
                     </Text>
+                    {Boolean(transaction.refundedAmount && transaction.refundedAmount > 0) && (
+                      <Text
+                        style={[
+                          theme.typography.caption,
+                          { color: theme.colors.text.secondary, marginTop: 4 },
+                        ]}
+                      >
+                        Remboursement actuel : {formatCurrency(transaction.refundedAmount || 0, currency)}
+                      </Text>
+                    )}
                   </View>
 
                   <Text
@@ -328,7 +335,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                       </Text>
                     </Pressable>
 
-                    {Boolean(transaction.refundedAmount && transaction.refundedAmount > 0) && (
+                    {(Boolean(transaction.refundedAmount && transaction.refundedAmount > 0) || (refundAmount !== '' && refundAmount !== '0')) && (
                       <Pressable
                         onPress={() => {
                           setRefundAmount('0');
@@ -476,12 +483,11 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                     {transaction.type === 'expense' && (
                       <Pressable
                         onPress={() => {
-                          const maxRef = Math.max(0, transaction.amount - (transaction.refundedAmount || 0));
-                          if (maxRef <= 0) {
-                            showError('Opération déjà soldée', 'Cette dépense a déjà été intégralement remboursée.');
-                            return;
-                          }
-                          setRefundAmount(String(maxRef));
+                          const initialRefund =
+                            transaction.refundedAmount && transaction.refundedAmount > 0
+                              ? transaction.refundedAmount
+                              : transaction.amount;
+                          setRefundAmount(String(initialRefund));
                           setIsRefunding(true);
                         }}
                         style={[
@@ -491,7 +497,9 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                       >
                         <RotateCcw size={16} color={theme.colors.pillar.savings} />
                         <Text style={[theme.typography.body, { color: theme.colors.pillar.savings, fontWeight: '600', marginLeft: 6 }]}>
-                          Rembourser
+                          {transaction.refundedAmount && transaction.refundedAmount > 0
+                            ? 'Modifier remboursement'
+                            : 'Rembourser'}
                         </Text>
                       </Pressable>
                     )}
