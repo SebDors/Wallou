@@ -87,17 +87,6 @@ export default function TransactionsScreen() {
 
   const currency = settings?.currency || '€';
 
-  // Counts for pills (excluding phantom refund transactions)
-  const counts = useMemo(() => {
-    const valid = transactions.filter((t) => t.type !== 'refund');
-    return {
-      all: valid.length,
-      needs: valid.filter((t) => t.pillarId === 'needs').length,
-      wants: valid.filter((t) => t.pillarId === 'wants').length,
-      savings: valid.filter((t) => t.pillarId === 'savings').length,
-      income: valid.filter((t) => t.type === 'income').length,
-    };
-  }, [transactions]);
 
   // Available categories strictly matching user-defined categories from Settings
   const availableCategories = useMemo(() => {
@@ -498,35 +487,30 @@ export default function TransactionsScreen() {
             keyboardShouldPersistTaps="handled"
           >
             <Pill
-              label="Tout"
-              count={counts.all}
+              label="Tous"
               isActive={activeFilter === 'all'}
               onPress={() => handleFilterPress('all')}
             />
             <Pill
               label="Besoins"
-              count={counts.needs}
               isActive={activeFilter === 'needs'}
               accentColor={theme.colors.pillar.needs}
               onPress={() => handleFilterPress('needs')}
             />
             <Pill
               label="Envies"
-              count={counts.wants}
               isActive={activeFilter === 'wants'}
               accentColor={theme.colors.pillar.wants}
               onPress={() => handleFilterPress('wants')}
             />
             <Pill
               label="Épargne"
-              count={counts.savings}
               isActive={activeFilter === 'savings'}
               accentColor={theme.colors.pillar.savings}
               onPress={() => handleFilterPress('savings')}
             />
             <Pill
               label="Revenus"
-              count={counts.income}
               isActive={activeFilter === 'income'}
               accentColor={theme.colors.status.income}
               onPress={() => handleFilterPress('income')}

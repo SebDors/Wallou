@@ -1,16 +1,17 @@
-# 🚀 Wallou — Version 1.3.1
+# 🚀 Wallou — Version 1.3.2
 
-Bienvenue sur la mise à jour **1.3.1** de **Wallou** !
+Bienvenue sur la mise à jour **1.3.2** de **Wallou** !
 
 ---
 
-## 🌟 Améliorations de la Version 1.3.1
+## 🌟 Améliorations de la Version 1.3.2
 
-### 🧹 Écran Aperçu épuré & allégé
-* **Suppression de l'encadré d'absence de dépenses** : Lorsque vous n'avez pas de dépenses prévues dans les 3 prochains jours, l'encadré indicatif *(« Aucune dépense dans les 3 prochains jours • Budget serein ! »)* ne s'affiche plus inutilement, libérant ainsi de l'espace visuel pour vos graphiques et vos indicateurs financiers clés.
-* **Maintien des alertes de dépenses imminentes** : Dès qu'une dépense récurrente ou planifiée est prévue dans les 3 jours, la carte d'alerte avec le montant et l'impact sur le reste à vivre s'affiche toujours comme prévu.
+### 🏷️ Pilules de filtres épurées & compactes (Opérations)
+* **Suppression des chiffres et pourcentages associés** : Les pilules de filtres principaux *(« Tous », « Besoins », « Envies », « Épargne », « Revenus »)* n'affichent désormais que le texte du filtre, sans badges numériques ni pourcentages de répartition.
+* **Affichage plus compact et lisible** : Les pilules s'alignent plus facilement sur une seule ligne et offrent une vue claire et épurée.
+* **Détail de transaction clarifié** : Dans la fiche détaillée d'une opération, le pilier affiche désormais directement son nom net *(Besoins, Envies, Épargne)* sans pourcentage résiduel.
 
 ---
 
 ### 📱 Installation de l'APK Android
-Téléchargez le fichier `Wallou-v1.3.1.apk` ci-dessous et installez-le directement sur votre appareil Android.
+Téléchargez le fichier `Wallou-v1.3.2.apk` ci-dessous et installez-le directement sur votre appareil Android.
