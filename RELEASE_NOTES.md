@@ -1,17 +1,17 @@
-# 🚀 Wallou — Version 1.2.8
+# 🚀 Wallou — Version 1.2.9
 
-Bienvenue sur la mise à jour **1.2.8** de **Wallou** ! Cette version débloque la modification complète des remboursements, même lorsqu'une dépense a été remboursée à 100 %.
+Bienvenue sur la mise à jour **1.2.9** de **Wallou** ! Cette version optimise la barre de filtres des opérations pour un affichage sur une seule ligne et une navigation encore plus intuitive.
 
 ---
 
-## 🌟 Nouveautés & Améliorations de la Version 1.2.8
+## 🌟 Nouveautés & Améliorations de la Version 1.2.9
 
-### 🔄 Modification Libre & Réversibilité des Remboursements (même à 100 %)
-* **Plus aucun blocage sur les dépenses soldées** : Vous pouvez désormais rouvrir la boîte de remboursement à tout moment, même si une opération a été remboursée à 100 %, pour réajuster le montant (par ex. passer de 100 % à 50 % ou à une somme personnalisée).
-* **Annulation en 1 tap** : Le bouton « Annuler le remboursement (0 €) » est accessible pour réinitialiser instantanément n'importe quel remboursement en cas d'erreur.
-* **Affichage clarifié** : La boîte de dialogue présente clairement le montant initial de la dépense ainsi que le remboursement actuellement appliqué.
+### 🎯 Filtres d'Opérations sur une Seule Ligne
+* **Alignement horizontal fluide** : Les pastilles principales de filtrage (*Tout*, *Besoins*, *Envies*, *Épargne*, *Revenus*) sont désormais alignées sur **une seule et même ligne**, sans retour à la ligne ni superposition.
+* **Libellés épurés & lisibles** : Les étiquettes ont été allégées tout en conservant leur compteur d'opérations en temps réel.
+* **Comportement de bascule (Toggle to All)** : À l'instar des filtres de catégories, cliquer sur un filtre déjà actif (par exemple *Épargne*) le désélectionne immédiatement et vous ramène sur *Tout*.
 
 ---
 
 ### 📱 Installation de l'APK Android
-Téléchargez le fichier `Wallou-v1.2.8.apk` ci-dessous et installez-le directement sur votre appareil Android.
+Téléchargez le fichier `Wallou-v1.2.9.apk` ci-dessous et installez-le directement sur votre appareil Android.
