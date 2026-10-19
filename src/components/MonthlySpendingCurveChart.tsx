@@ -7,7 +7,18 @@ import {
   GestureResponderEvent,
   PanResponderGestureState,
 } from 'react-native';
-import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, {
+  Path,
+  Line,
+  Circle,
+  Defs,
+  LinearGradient,
+  Stop,
+  ClipPath,
+  Rect,
+  G,
+  Text as SvgText,
+} from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { Transaction } from '../types/budget';
 import { useTheme } from '../context/ThemeContext';
@@ -138,9 +149,17 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
 
   const minVal = Math.min(0, ...activeBalances);
   const maxVal = Math.max(totalIncome, 100, Number(startingBalance || 0), ...activeBalances);
-  const range = maxVal - minVal || 1;
+  const hasNegativeBalance = minVal < 0;
+
+  // When negative balances exist, allocate clear visual space below the zero axis
+  // so the curve visibly dips under the horizontal axis.
+  const visualMinVal = hasNegativeBalance
+    ? Math.min(minVal, -Math.max(100, maxVal) * 0.22)
+    : 0;
+
+  const range = maxVal - visualMinVal || 1;
   const maxY = maxVal + range * 0.08;
-  const minY = Math.min(0, minVal - range * 0.05);
+  const minY = hasNegativeBalance ? visualMinVal - range * 0.06 : 0;
 
   const getX = (day: number) => paddingLeft + ((day - 1) / Math.max(1, totalDays - 1)) * chartWidth;
   const getY = (val: number) =>
@@ -189,9 +208,8 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
     if (points.length < 2 || !linePath) return '';
     const first = points[0];
     const last = points[points.length - 1];
-    const bottomY = Math.min(paddingTop + chartHeight, zeroBaselineY).toFixed(1);
-    return `${linePath} L ${last.x.toFixed(1)} ${bottomY} L ${first.x.toFixed(1)} ${bottomY} Z`;
-  }, [points, linePath, paddingTop, chartHeight, zeroBaselineY]);
+    return `${linePath} L ${last.x.toFixed(1)} ${zeroBaselineY.toFixed(1)} L ${first.x.toFixed(1)} ${zeroBaselineY.toFixed(1)} Z`;
+  }, [points, linePath, zeroBaselineY]);
 
   // Continuous finger scrubbing handlers with vertical drift tolerance
   const updateScrubbingPositionFromX = (locX: number) => {
@@ -274,6 +292,10 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
 
   const isScrubbingActive = scrubbingDay !== null;
   const balanceColor = activeBalance >= 0 ? theme.colors.status.income : theme.colors.status.overrun;
+  const activePointColor =
+    activePoint && activePoint.balance < 0
+      ? theme.colors.status.overrun
+      : theme.colors.status.income;
 
   return (
     <View style={[styles.container, { width }]}>
@@ -338,37 +360,87 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
       >
         <Svg width={width} height={height} pointerEvents="none">
           <Defs>
-            <LinearGradient id="trBalanceGradient" x1="0" y1="0" x2="0" y2="1">
+            <ClipPath id="positiveClip">
+              <Rect x={0} y={0} width={width} height={zeroBaselineY} />
+            </ClipPath>
+            {hasNegativeBalance && (
+              <ClipPath id="negativeClip">
+                <Rect
+                  x={0}
+                  y={zeroBaselineY}
+                  width={width}
+                  height={Math.max(0, height - zeroBaselineY)}
+                />
+              </ClipPath>
+            )}
+            <LinearGradient id="trBalancePosGradient" x1="0" y1="0" x2="0" y2="1">
               <Stop offset="0%" stopColor={theme.colors.status.income} stopOpacity={0.32} />
-              <Stop offset="80%" stopColor={theme.colors.status.income} stopOpacity={0.04} />
-              <Stop offset="100%" stopColor={theme.colors.status.income} stopOpacity={0} />
+              <Stop offset="80%" stopColor={theme.colors.status.income} stopOpacity={0.06} />
+              <Stop offset="100%" stopColor={theme.colors.status.income} stopOpacity={0.01} />
             </LinearGradient>
+            {hasNegativeBalance && (
+              <LinearGradient id="trBalanceNegGradient" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0%" stopColor={theme.colors.status.overrun} stopOpacity={0.01} />
+                <Stop offset="40%" stopColor={theme.colors.status.overrun} stopOpacity={0.08} />
+                <Stop offset="100%" stopColor={theme.colors.status.overrun} stopOpacity={0.32} />
+              </LinearGradient>
+            )}
           </Defs>
 
-          {/* Zero baseline */}
+          {/* Zero baseline (Axe des abscisses) */}
           <Line
             x1={paddingLeft}
             y1={zeroBaselineY}
             x2={paddingLeft + chartWidth}
             y2={zeroBaselineY}
-            stroke={theme.colors.border.subtle}
-            strokeWidth={1}
-            strokeDasharray="4 4"
+            stroke={hasNegativeBalance ? (theme.isDark ? '#6B7280' : '#9CA3AF') : theme.colors.border.subtle}
+            strokeWidth={hasNegativeBalance ? 1.5 : 1}
+            strokeDasharray={hasNegativeBalance ? undefined : '4 4'}
           />
 
-          {/* Gradient Area under balance curve */}
-          {areaPath.length > 0 && <Path d={areaPath} fill="url(#trBalanceGradient)" />}
+          {hasNegativeBalance && (
+            <SvgText
+              x={paddingLeft + chartWidth}
+              y={zeroBaselineY - 4}
+              textAnchor="end"
+              fill={theme.isDark ? '#9CA3AF' : '#6B7280'}
+              fontSize={10}
+              fontWeight="600"
+            >
+              0 {currency}
+            </SvgText>
+          )}
 
-          {/* Main Net Balance Curve */}
-          {linePath.length > 0 && (
-            <Path
-              d={linePath}
-              stroke={theme.colors.status.income}
-              strokeWidth={2.75}
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+          {/* Positive Zone (Green, above axis) */}
+          <G clipPath="url(#positiveClip)">
+            {areaPath.length > 0 && <Path d={areaPath} fill="url(#trBalancePosGradient)" />}
+            {linePath.length > 0 && (
+              <Path
+                d={linePath}
+                stroke={theme.colors.status.income}
+                strokeWidth={2.75}
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            )}
+          </G>
+
+          {/* Negative Zone (Red, below axis) */}
+          {hasNegativeBalance && (
+            <G clipPath="url(#negativeClip)">
+              {areaPath.length > 0 && <Path d={areaPath} fill="url(#trBalanceNegGradient)" />}
+              {linePath.length > 0 && (
+                <Path
+                  d={linePath}
+                  stroke={theme.colors.status.overrun}
+                  strokeWidth={2.75}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              )}
+            </G>
           )}
 
           {/* Vertical cursor & active point on curve */}
@@ -388,7 +460,7 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
                 cx={activePoint.x}
                 cy={activePoint.y}
                 r={7}
-                fill={theme.colors.status.income}
+                fill={activePointColor}
                 fillOpacity={0.25}
               />
               <Circle
@@ -396,7 +468,7 @@ export const MonthlySpendingCurveChart: React.FC<MonthlySpendingCurveChartProps>
                 cy={activePoint.y}
                 r={4}
                 fill={theme.colors.bg.surface}
-                stroke={theme.colors.status.income}
+                stroke={activePointColor}
                 strokeWidth={2.5}
               />
             </>
