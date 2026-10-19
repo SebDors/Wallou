@@ -16,6 +16,7 @@ export interface SwipeableTransactionRowProps {
   onSwipeLeftDelete: () => void;
   onSwipeRightEdit: () => void;
   onPress: () => void;
+  disabled?: boolean;
 }
 
 export const SwipeableTransactionRow: React.FC<SwipeableTransactionRowProps> = ({
@@ -23,6 +24,7 @@ export const SwipeableTransactionRow: React.FC<SwipeableTransactionRowProps> = (
   onSwipeLeftDelete,
   onSwipeRightEdit,
   onPress,
+  disabled = false,
 }) => {
   const { theme } = useTheme();
   const pan = useRef(new Animated.Value(0)).current;
@@ -31,6 +33,7 @@ export const SwipeableTransactionRow: React.FC<SwipeableTransactionRowProps> = (
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) => {
+        if (disabled) return false;
         // Only capture horizontal gestures with substantial dx compared to dy
         return (
           Math.abs(gestureState.dx) > 12 &&
