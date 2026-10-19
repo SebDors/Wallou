@@ -20,7 +20,6 @@ import {
   BarChart3,
   Info,
   CalendarClock,
-  CheckCircle2,
   PieChart,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -648,28 +647,7 @@ export default function DashboardScreen() {
             </View>
           </View>
         </Card>
-      ) : (
-        <View
-          style={[
-            styles.sereneCard,
-            {
-              backgroundColor: theme.colors.bg.surfaceSubtle,
-              borderRadius: theme.radii.md,
-              marginTop: theme.spacing.sm,
-            },
-          ]}
-        >
-          <CheckCircle2 size={16} color={theme.colors.status.income} style={{ marginRight: 8 }} />
-          <Text
-            style={[
-              theme.typography.caption,
-              { color: theme.colors.text.secondary, fontWeight: '500' },
-            ]}
-          >
-            Aucune dépense dans les 3 prochains jours • Budget serein !
-          </Text>
-        </View>
-      )}
+      ) : null}
 
       {/* 3. Charts Tabbed Section (Donut Chart & Monthly Evolution Curve) */}
       <View
@@ -1261,13 +1239,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 3,
-  },
-  sereneCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    justifyContent: 'center',
   },
   startingBalanceBadge: {
     marginTop: 4,
