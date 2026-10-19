@@ -62,6 +62,18 @@ export default function TransactionsScreen() {
       setActiveFilter(params.filter as FilterType);
     }
   }, [params.filter]);
+
+  const handleFilterPress = (filter: FilterType) => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
+    if (filter === 'all' || activeFilter === filter) {
+      setActiveFilter('all');
+    } else {
+      setActiveFilter(filter);
+    }
+  };
+
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [startEditing, setStartEditing] = useState(false);
 
@@ -336,40 +348,47 @@ export default function TransactionsScreen() {
 
         {/* Filter Pills Scroll */}
         <View style={styles.pillsRow}>
-          <Pill
-            label="Tous"
-            count={counts.all}
-            isActive={activeFilter === 'all'}
-            onPress={() => setActiveFilter('all')}
-          />
-          <Pill
-            label="Besoins (50%)"
-            count={counts.needs}
-            isActive={activeFilter === 'needs'}
-            accentColor={theme.colors.pillar.needs}
-            onPress={() => setActiveFilter('needs')}
-          />
-          <Pill
-            label="Envies (30%)"
-            count={counts.wants}
-            isActive={activeFilter === 'wants'}
-            accentColor={theme.colors.pillar.wants}
-            onPress={() => setActiveFilter('wants')}
-          />
-          <Pill
-            label="Épargne (20%)"
-            count={counts.savings}
-            isActive={activeFilter === 'savings'}
-            accentColor={theme.colors.pillar.savings}
-            onPress={() => setActiveFilter('savings')}
-          />
-          <Pill
-            label="Revenus"
-            count={counts.income}
-            isActive={activeFilter === 'income'}
-            accentColor={theme.colors.status.income}
-            onPress={() => setActiveFilter('income')}
-          />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.pillsScrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Pill
+              label="Tout"
+              count={counts.all}
+              isActive={activeFilter === 'all'}
+              onPress={() => handleFilterPress('all')}
+            />
+            <Pill
+              label="Besoins"
+              count={counts.needs}
+              isActive={activeFilter === 'needs'}
+              accentColor={theme.colors.pillar.needs}
+              onPress={() => handleFilterPress('needs')}
+            />
+            <Pill
+              label="Envies"
+              count={counts.wants}
+              isActive={activeFilter === 'wants'}
+              accentColor={theme.colors.pillar.wants}
+              onPress={() => handleFilterPress('wants')}
+            />
+            <Pill
+              label="Épargne"
+              count={counts.savings}
+              isActive={activeFilter === 'savings'}
+              accentColor={theme.colors.pillar.savings}
+              onPress={() => handleFilterPress('savings')}
+            />
+            <Pill
+              label="Revenus"
+              count={counts.income}
+              isActive={activeFilter === 'income'}
+              accentColor={theme.colors.status.income}
+              onPress={() => handleFilterPress('income')}
+            />
+          </ScrollView>
         </View>
 
         {/* Category Filter Pills (Smaller, discreet secondary chips) */}
@@ -714,10 +733,13 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   pillsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
     marginTop: 12,
+  },
+  pillsScrollContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingRight: 16,
   },
   categoryFilterRow: {
     marginTop: 10,
