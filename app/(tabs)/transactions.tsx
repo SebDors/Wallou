@@ -24,6 +24,9 @@ import {
   ArrowUpCircle,
   RotateCcw,
   Tag,
+  Calculator,
+  Check,
+  CheckSquare,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../src/context/ThemeContext';
@@ -35,7 +38,7 @@ import { Card } from '../../src/components/Card';
 import { SwipeableTransactionRow } from '../../src/components/SwipeableTransactionRow';
 import { TransactionDetailModal } from '../../src/components/TransactionDetailModal';
 import { useDialog } from '../../src/context/DialogContext';
-import { formatCurrency } from '../../src/services/budgetEngine';
+import { formatCurrency, round2 } from '../../src/services/budgetEngine';
 import { PillarId, Transaction } from '../../src/types/budget';
 
 type FilterType = 'all' | 'needs' | 'wants' | 'savings' | 'income';
@@ -46,7 +49,7 @@ export default function TransactionsScreen() {
   const params = useLocalSearchParams<{ filter?: string }>();
   const { transactions, deleteTransaction, updateTransaction, settings, categories } = useBudget();
   const { openQuickEntry } = useQuickEntry();
-  const { showConfirm } = useDialog();
+  const { showConfirm, showError } = useDialog();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>(() => {
@@ -56,6 +59,11 @@ export default function TransactionsScreen() {
     return 'all';
   });
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedTxIds, setSelectedTxIds] = useState<Set<string>>(new Set());
+  const [showCalculatorModal, setShowCalculatorModal] = useState(false);
+  const [refundPercent, setRefundPercent] = useState('50');
 
   useEffect(() => {
     if (params.filter && ['all', 'needs', 'wants', 'savings', 'income'].includes(params.filter)) {
@@ -257,6 +265,93 @@ export default function TransactionsScreen() {
     return sections;
   }, [filteredTransactions]);
 
+  const toggleSelectMode = () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
+    setIsSelectMode((prev) => {
+      if (prev) {
+        setSelectedTxIds(new Set());
+        setShowCalculatorModal(false);
+      }
+      return !prev;
+    });
+  };
+
+  const toggleSelectTx = (id: string) => {
+    try {
+      Haptics.selectionAsync();
+    } catch {}
+    setSelectedTxIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllExpenses = () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
+    const expenseIds = filteredTransactions
+      .filter((t) => t.type === 'expense')
+      .map((t) => t.id);
+    setSelectedTxIds(new Set(expenseIds));
+  };
+
+  const handleDeselectAll = () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
+    setSelectedTxIds(new Set());
+  };
+
+  const selectedExpenses = useMemo(() => {
+    return transactions.filter((t) => selectedTxIds.has(t.id) && t.type === 'expense');
+  }, [transactions, selectedTxIds]);
+
+  const totalSelectedAmount = useMemo(() => {
+    return round2(selectedExpenses.reduce((sum, t) => sum + (t.amount || 0), 0));
+  }, [selectedExpenses]);
+
+  const parsedPercent = parseFloat(refundPercent.replace(',', '.')) || 0;
+  const calculatedRefund = useMemo(() => {
+    return round2(totalSelectedAmount * (parsedPercent / 100));
+  }, [totalSelectedAmount, parsedPercent]);
+
+  const calculatedRemaining = useMemo(() => {
+    return round2(Math.max(0, totalSelectedAmount - calculatedRefund));
+  }, [totalSelectedAmount, calculatedRefund]);
+
+  const handleApplyBatchRefund = async () => {
+    const pct = parseFloat(refundPercent.replace(',', '.')) || 0;
+    if (pct < 0 || pct > 100) {
+      showError('Pourcentage invalide', 'Veuillez saisir un pourcentage entre 0 et 100.');
+      return;
+    }
+
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {}
+
+    const selectedList = transactions.filter((t) => selectedTxIds.has(t.id) && t.type === 'expense');
+    for (const tx of selectedList) {
+      const txRefund = round2(tx.amount * (pct / 100));
+      await updateTransaction({
+        ...tx,
+        refundedAmount: txRefund,
+      });
+    }
+
+    setShowCalculatorModal(false);
+    setIsSelectMode(false);
+    setSelectedTxIds(new Set());
+  };
+
   const handleOpenDetail = (tx: Transaction, editMode = false) => {
     setSelectedTx(tx);
     setStartEditing(editMode);
@@ -308,14 +403,62 @@ export default function TransactionsScreen() {
           },
         ]}
       >
-        <Text
-          style={[
-            theme.typography.title1,
-            { color: theme.colors.text.primary, marginBottom: theme.spacing.md },
-          ]}
-        >
-          Opérations
-        </Text>
+        <View style={styles.headerTitleRow}>
+          <Text
+            style={[
+              theme.typography.title1,
+              { color: theme.colors.text.primary },
+            ]}
+          >
+            {isSelectMode ? `Sélection (${selectedTxIds.size})` : 'Opérations'}
+          </Text>
+
+          <Pressable
+            onPress={toggleSelectMode}
+            style={[
+              styles.selectToggleBtn,
+              {
+                backgroundColor: isSelectMode
+                  ? theme.colors.pillar.savings
+                  : theme.colors.bg.surfaceSubtle,
+                borderColor: isSelectMode
+                  ? theme.colors.pillar.savings
+                  : theme.colors.border.subtle,
+                borderRadius: theme.radii.full,
+              },
+            ]}
+          >
+            <CheckSquare size={14} color={isSelectMode ? '#FFFFFF' : theme.colors.text.secondary} />
+            <Text
+              style={[
+                theme.typography.caption,
+                {
+                  color: isSelectMode ? '#FFFFFF' : theme.colors.text.secondary,
+                  fontWeight: '600',
+                  marginLeft: 5,
+                },
+              ]}
+            >
+              {isSelectMode ? 'Terminer' : 'Sélectionner'}
+            </Text>
+          </Pressable>
+        </View>
+
+        {isSelectMode && (
+          <View style={styles.selectActionsQuickRow}>
+            <Pressable onPress={handleSelectAllExpenses} style={styles.quickSelectTextBtn}>
+              <Text style={[theme.typography.caption, { color: theme.colors.pillar.savings, fontWeight: '600' }]}>
+                Tout sélectionner
+              </Text>
+            </Pressable>
+            <Text style={{ color: theme.colors.text.muted, marginHorizontal: 8 }}>•</Text>
+            <Pressable onPress={handleDeselectAll} style={styles.quickSelectTextBtn}>
+              <Text style={[theme.typography.caption, { color: theme.colors.text.secondary, fontWeight: '500' }]}>
+                Tout désélectionner
+              </Text>
+            </Pressable>
+          </View>
+        )}
 
         {/* Search Input */}
         <View
@@ -508,7 +651,7 @@ export default function TransactionsScreen() {
         contentContainerStyle={[
           styles.listContent,
           {
-            paddingBottom: insets.bottom + 80,
+            paddingBottom: insets.bottom + (isSelectMode ? 140 : 80),
             paddingHorizontal: theme.spacing.lg,
           },
         ]}
@@ -545,10 +688,20 @@ export default function TransactionsScreen() {
           const isRefund = item.type === 'refund';
           const hasRefund =
             item.type === 'expense' && Boolean(item.refundedAmount && item.refundedAmount > 0);
+          const isSelected = selectedTxIds.has(item.id);
 
           return (
             <SwipeableTransactionRow
-              onPress={() => handleOpenDetail(item, false)}
+              disabled={isSelectMode}
+              onPress={() => {
+                if (isSelectMode) {
+                  if (item.type === 'expense') {
+                    toggleSelectTx(item.id);
+                  }
+                } else {
+                  handleOpenDetail(item, false);
+                }
+              }}
               onSwipeRightEdit={() => handleOpenDetail(item, true)}
               onSwipeLeftDelete={() => {
                 showConfirm(
@@ -563,10 +716,36 @@ export default function TransactionsScreen() {
               }}
             >
               <Card
-                style={styles.txCard}
+                style={[
+                  styles.txCard,
+                  isSelectMode && isSelected && {
+                    borderColor: theme.colors.pillar.savings,
+                  },
+                ]}
                 padded={false}
               >
                 <View style={styles.txRow}>
+                  {isSelectMode && item.type === 'expense' && (
+                    <Pressable
+                      onPress={() => toggleSelectTx(item.id)}
+                      hitSlop={8}
+                      style={[
+                        styles.checkbox,
+                        {
+                          borderColor: isSelected
+                            ? theme.colors.pillar.savings
+                            : theme.colors.border.subtle,
+                          backgroundColor: isSelected
+                            ? theme.colors.pillar.savings
+                            : 'transparent',
+                          borderRadius: theme.radii.sm,
+                        },
+                      ]}
+                    >
+                      {isSelected && <Check size={13} color="#FFFFFF" strokeWidth={3} />}
+                    </Pressable>
+                  )}
+
                   <View
                     style={[
                       styles.iconBox,
@@ -692,6 +871,281 @@ export default function TransactionsScreen() {
           </View>
         }
       />
+
+      {/* Floating Bottom Selection Bar */}
+      {isSelectMode && (
+        <View
+          style={[
+            styles.bottomSelectionBar,
+            {
+              backgroundColor: theme.colors.bg.surface,
+              borderColor: theme.colors.border.subtle,
+              paddingBottom: insets.bottom > 0 ? insets.bottom + 10 : 16,
+            },
+          ]}
+        >
+          <View style={styles.bottomSelectionInfo}>
+            <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
+              {selectedExpenses.length} dépense{selectedExpenses.length > 1 ? 's' : ''} • Cumul
+            </Text>
+            <Text
+              style={[
+                theme.typography.title2,
+                theme.typography.tabularNums,
+                { color: theme.colors.text.primary, fontWeight: '700' },
+              ]}
+            >
+              {formatCurrency(totalSelectedAmount, currency)}
+            </Text>
+          </View>
+
+          <Pressable
+            disabled={selectedExpenses.length === 0}
+            onPress={() => {
+              try {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              } catch {}
+              setShowCalculatorModal(true);
+            }}
+            style={[
+              styles.calcOpenBtn,
+              {
+                backgroundColor:
+                  selectedExpenses.length > 0
+                    ? theme.colors.pillar.savings
+                    : theme.colors.bg.surfaceSubtle,
+                opacity: selectedExpenses.length > 0 ? 1 : 0.5,
+                borderRadius: theme.radii.full,
+              },
+            ]}
+          >
+            <Calculator size={18} color={selectedExpenses.length > 0 ? '#FFFFFF' : theme.colors.text.muted} />
+            <Text
+              style={[
+                theme.typography.body,
+                {
+                  color: selectedExpenses.length > 0 ? '#FFFFFF' : theme.colors.text.muted,
+                  fontWeight: '700',
+                  marginLeft: 6,
+                },
+              ]}
+            >
+              Calculer
+            </Text>
+          </Pressable>
+        </View>
+      )}
+
+      {/* Refund Calculator Modal */}
+      <Modal
+        visible={showCalculatorModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowCalculatorModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View
+            style={[
+              styles.calcModalSheet,
+              {
+                backgroundColor: theme.colors.bg.surface,
+                borderColor: theme.colors.border.subtle,
+                borderTopLeftRadius: theme.radii.xl,
+                borderTopRightRadius: theme.radii.xl,
+                paddingBottom: insets.bottom > 0 ? insets.bottom + 16 : 24,
+              },
+            ]}
+          >
+            {/* Modal Header */}
+            <View style={styles.calcModalHeader}>
+              <View>
+                <Text style={[theme.typography.title2, { color: theme.colors.text.primary }]}>
+                  Calculateur de remboursement
+                </Text>
+                <Text style={[theme.typography.caption, { color: theme.colors.text.secondary, marginTop: 2 }]}>
+                  {selectedExpenses.length} dépense{selectedExpenses.length > 1 ? 's' : ''} sélectionnée{selectedExpenses.length > 1 ? 's' : ''}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setShowCalculatorModal(false)}
+                style={styles.calcCloseBtn}
+                hitSlop={8}
+              >
+                <X size={20} color={theme.colors.text.secondary} />
+              </Pressable>
+            </View>
+
+            {/* Total Cumul Box */}
+            <View
+              style={[
+                styles.calcSummaryBox,
+                {
+                  backgroundColor: theme.colors.bg.surfaceSubtle,
+                  borderColor: theme.colors.border.subtle,
+                  borderRadius: theme.radii.md,
+                },
+              ]}
+            >
+              <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
+                Montant total cumulé
+              </Text>
+              <Text
+                style={[
+                  theme.typography.title1,
+                  theme.typography.tabularNums,
+                  { color: theme.colors.text.primary, fontWeight: '700', marginTop: 2 },
+                ]}
+              >
+                {formatCurrency(totalSelectedAmount, currency)}
+              </Text>
+            </View>
+
+            {/* Percentage selector */}
+            <Text style={[theme.typography.caption, { color: theme.colors.text.secondary, marginTop: 14, marginBottom: 8 }]}>
+              Pourcentage à rembourser
+            </Text>
+            <View style={styles.presetPercentRow}>
+              {['50', '30', '25', '20', '100'].map((p) => {
+                const isActive = refundPercent === p;
+                return (
+                  <Pressable
+                    key={p}
+                    onPress={() => {
+                      setRefundPercent(p);
+                      try {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      } catch {}
+                    }}
+                    style={[
+                      styles.presetPercentChip,
+                      {
+                        backgroundColor: isActive
+                          ? theme.colors.pillar.savings
+                          : theme.colors.bg.surfaceSubtle,
+                        borderColor: isActive
+                          ? theme.colors.pillar.savings
+                          : theme.colors.border.subtle,
+                        borderRadius: theme.radii.full,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        theme.typography.caption,
+                        {
+                          color: isActive ? '#FFFFFF' : theme.colors.text.secondary,
+                          fontWeight: isActive ? '700' : '500',
+                        },
+                      ]}
+                    >
+                      {p}%
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Custom percent input */}
+            <View
+              style={[
+                styles.customPercentInputRow,
+                {
+                  backgroundColor: theme.colors.bg.surfaceSubtle,
+                  borderColor: theme.colors.border.subtle,
+                  borderRadius: theme.radii.md,
+                },
+              ]}
+            >
+              <TextInput
+                value={refundPercent}
+                onChangeText={setRefundPercent}
+                keyboardType="numeric"
+                placeholder="50"
+                placeholderTextColor={theme.colors.text.muted}
+                style={[
+                  styles.customPercentInput,
+                  { color: theme.colors.text.primary },
+                ]}
+              />
+              <Text style={[theme.typography.body, { color: theme.colors.text.secondary, fontWeight: '700', marginRight: 12 }]}>
+                %
+              </Text>
+            </View>
+
+            {/* Results Display */}
+            <View
+              style={[
+                styles.calcResultCard,
+                {
+                  backgroundColor: theme.colors.pillar.savingsBg,
+                  borderRadius: theme.radii.lg,
+                  borderColor: theme.colors.border.subtle,
+                },
+              ]}
+            >
+              <View style={styles.calcResultRow}>
+                <Text style={[theme.typography.caption, { color: theme.colors.pillar.savings, fontWeight: '600' }]}>
+                  Montant à rembourser ({refundPercent || 0} %)
+                </Text>
+                <Text
+                  style={[
+                    theme.typography.title1,
+                    theme.typography.tabularNums,
+                    { color: theme.colors.pillar.savings, fontWeight: '800' },
+                  ]}
+                >
+                  +{formatCurrency(calculatedRefund, currency)}
+                </Text>
+              </View>
+
+              <View style={[styles.calcResultDivider, { backgroundColor: theme.colors.border.subtle }]} />
+
+              <View style={styles.calcResultRow}>
+                <Text style={[theme.typography.caption, { color: theme.colors.text.secondary }]}>
+                  Reste à votre charge
+                </Text>
+                <Text
+                  style={[
+                    theme.typography.bodyLarge,
+                    theme.typography.tabularNums,
+                    { color: theme.colors.text.primary, fontWeight: '700' },
+                  ]}
+                >
+                  {formatCurrency(calculatedRemaining, currency)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Actions Buttons */}
+            <View style={styles.calcModalActions}>
+              <Pressable
+                onPress={() => setShowCalculatorModal(false)}
+                style={[
+                  styles.calcActionBtn,
+                  { backgroundColor: theme.colors.bg.surfaceSubtle, borderRadius: theme.radii.md },
+                ]}
+              >
+                <Text style={[theme.typography.body, { color: theme.colors.text.secondary }]}>
+                  Fermer
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleApplyBatchRefund}
+                style={[
+                  styles.calcActionBtn,
+                  { backgroundColor: theme.colors.pillar.savings, borderRadius: theme.radii.md },
+                ]}
+              >
+                <RotateCcw size={16} color="#FFFFFF" />
+                <Text style={[theme.typography.body, { color: '#FFFFFF', fontWeight: '700', marginLeft: 6 }]}>
+                  Appliquer aux opérations
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Transaction Details / Edit Modal */}
       <TransactionDetailModal
@@ -896,5 +1350,130 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  selectToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+  },
+  selectActionsQuickRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    marginTop: 2,
+  },
+  quickSelectTextBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  bottomSelectionBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+  },
+  bottomSelectionInfo: {
+    flex: 1,
+  },
+  calcOpenBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+  },
+  calcModalSheet: {
+    padding: 20,
+    borderTopWidth: 1,
+  },
+  calcModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  calcCloseBtn: {
+    padding: 6,
+  },
+  calcSummaryBox: {
+    padding: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  presetPercentRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+    marginBottom: 12,
+  },
+  presetPercentChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+  },
+  customPercentInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    height: 44,
+    marginBottom: 16,
+  },
+  customPercentInput: {
+    flex: 1,
+    height: '100%',
+    paddingHorizontal: 14,
+    fontSize: 16,
+  },
+  calcResultCard: {
+    padding: 16,
+    borderWidth: 1,
+    marginBottom: 20,
+  },
+  calcResultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  calcResultDivider: {
+    height: 1,
+    marginVertical: 12,
+  },
+  calcModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  calcActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
   },
 });

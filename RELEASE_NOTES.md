@@ -1,17 +1,25 @@
-# 🚀 Wallou — Version 1.2.9
+# 🚀 Wallou — Version 1.3.0
 
-Bienvenue sur la mise à jour **1.2.9** de **Wallou** ! Cette version optimise la barre de filtres des opérations pour un affichage sur une seule ligne et une navigation encore plus intuitive.
+Bienvenue sur la mise à jour majeure **1.3.0** de **Wallou** ! Cette version introduit la sélection multiple des dépenses avec calcul automatique du cumul et un calculateur interactif de remboursement à pourcentage personnalisé.
 
 ---
 
-## 🌟 Nouveautés & Améliorations de la Version 1.2.9
+## 🌟 Nouveautés de la Version 1.3.0
 
-### 🎯 Filtres d'Opérations sur une Seule Ligne
-* **Alignement horizontal fluide** : Les pastilles principales de filtrage (*Tout*, *Besoins*, *Envies*, *Épargne*, *Revenus*) sont désormais alignées sur **une seule et même ligne**, sans retour à la ligne ni superposition.
-* **Libellés épurés & lisibles** : Les étiquettes ont été allégées tout en conservant leur compteur d'opérations en temps réel.
-* **Comportement de bascule (Toggle to All)** : À l'instar des filtres de catégories, cliquer sur un filtre déjà actif (par exemple *Épargne*) le désélectionne immédiatement et vous ramène sur *Tout*.
+### ☑️ Mode Sélection Multiple & Cases à Cocher
+* **Bouton « Sélectionner » dans l'en-tête** : Activez le mode sélection en un tap depuis l'onglet Opérations.
+* **Cases à cocher dédiées** : Une case à cocher s'affiche immédiatement à gauche du logo de chaque dépense. Un simple tap sur la ligne coche ou décoche l'opération avec retour haptique.
+* **Actions rapides** : Raccourcis « Tout sélectionner » et « Tout désélectionner » pour manipuler rapidement l'ensemble des dépenses filtrées.
+
+### 🧮 Cumul en Direct & Calculateur de Remboursement X %
+* **Barre de cumul flottante** : Affiche en continu le nombre de dépenses sélectionnées et la somme totale cumulée en euros.
+* **Calculateur interactif de remboursement** :
+  - **Pourcentages prédéfinis** : Raccourcis rapides à `50 %`, `30 %`, `25 %`, `20 %` ou `100 %`.
+  - **Saisie libre** : Champ de saisie numérique pour choisir n'importe quel pourcentage personnalisé (ex: 40 %, 60 %, 33 %, etc.).
+  - **Affichage instantané** : Montant remboursé calculé au centime près et reste à votre charge.
+* **Application directe au budget** : Option « Appliquer aux opérations » pour mettre à jour instantanément la part remboursée de chaque dépense sélectionnée dans l'application.
 
 ---
 
 ### 📱 Installation de l'APK Android
-Téléchargez le fichier `Wallou-v1.2.9.apk` ci-dessous et installez-le directement sur votre appareil Android.
+Téléchargez le fichier `Wallou-v1.3.0.apk` ci-dessous et installez-le directement sur votre appareil Android.
