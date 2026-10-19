@@ -421,10 +421,10 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                         : isRefund
                         ? `Remboursement (${PILLAR_NAMES[transaction.pillarId || 'wants']})`
                         : transaction.pillarId === 'needs'
-                        ? 'Besoins (50%)'
+                        ? 'Besoins'
                         : transaction.pillarId === 'wants'
-                        ? 'Envies (30%)'
-                        : 'Épargne (20%)'}
+                        ? 'Envies'
+                        : 'Épargne'}
                     </Text>
                   </View>
 
