@@ -496,9 +496,16 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                         ]}
                       >
                         <RotateCcw size={16} color={theme.colors.pillar.savings} />
-                        <Text style={[theme.typography.body, { color: theme.colors.pillar.savings, fontWeight: '600', marginLeft: 6 }]}>
+                        <Text
+                          style={[
+                            theme.typography.body,
+                            { color: theme.colors.pillar.savings, fontWeight: '600', marginLeft: 6 },
+                          ]}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                        >
                           {transaction.refundedAmount && transaction.refundedAmount > 0
-                            ? 'Modifier remboursement'
+                            ? 'Remboursement'
                             : 'Rembourser'}
                         </Text>
                       </Pressable>
@@ -837,6 +844,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
+    paddingHorizontal: 6,
   },
   input: {
     borderWidth: 1,
