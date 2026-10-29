@@ -250,4 +250,44 @@ describe('BudgetContext', () => {
     expect(capturedContext?.summary.startingBalance).toBe(1380);
     expect(capturedContext?.summary.netBalance).toBe(1380);
   });
+
+  it('manages hidden periods lifecycle (hide, unhide, reset)', async () => {
+    await act(async () => {
+      create(
+        <BudgetProvider>
+          <TestConsumer />
+        </BudgetProvider>
+      );
+    });
+
+    expect(capturedContext?.settings.hiddenPeriods).toBeUndefined();
+
+    // 1. Hide period
+    await act(async () => {
+      await capturedContext?.hidePeriod('2026-08');
+    });
+
+    expect(capturedContext?.settings.hiddenPeriods).toEqual(['2026-08']);
+
+    // Hide another period
+    await act(async () => {
+      await capturedContext?.hidePeriod('2026-09');
+    });
+
+    expect(capturedContext?.settings.hiddenPeriods).toEqual(['2026-08', '2026-09']);
+
+    // 2. Unhide period
+    await act(async () => {
+      await capturedContext?.unhidePeriod('2026-08');
+    });
+
+    expect(capturedContext?.settings.hiddenPeriods).toEqual(['2026-09']);
+
+    // 3. Reset hidden periods
+    await act(async () => {
+      await capturedContext?.resetHiddenPeriods();
+    });
+
+    expect(capturedContext?.settings.hiddenPeriods).toEqual([]);
+  });
 });

@@ -60,6 +60,9 @@ export interface BudgetContextType {
   updateRecurringItem: (item: RecurringItem) => Promise<void>;
   deleteRecurringItem: (id: string) => Promise<void>;
   updateSettings: (newSettings: Partial<UserSettings>) => Promise<void>;
+  hidePeriod: (periodKey: string) => Promise<void>;
+  unhidePeriod: (periodKey: string) => Promise<void>;
+  resetHiddenPeriods: () => Promise<void>;
   addCategory: (categoryName: string) => Promise<void>;
   deleteCategory: (categoryName: string) => Promise<void>;
   exportData: () => HermeticBackupPayload;
@@ -398,6 +401,30 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     await updateSettings({ customCategories: nextCustom });
   }, [settings?.customCategories, updateSettings]);
 
+  const hidePeriod = useCallback(
+    async (periodKey: string): Promise<void> => {
+      const current = settings?.hiddenPeriods || [];
+      if (!current.includes(periodKey)) {
+        await updateSettings({ hiddenPeriods: [...current, periodKey] });
+      }
+    },
+    [settings?.hiddenPeriods, updateSettings]
+  );
+
+  const unhidePeriod = useCallback(
+    async (periodKey: string): Promise<void> => {
+      const current = settings?.hiddenPeriods || [];
+      if (current.includes(periodKey)) {
+        await updateSettings({ hiddenPeriods: current.filter((k) => k !== periodKey) });
+      }
+    },
+    [settings?.hiddenPeriods, updateSettings]
+  );
+
+  const resetHiddenPeriods = useCallback(async (): Promise<void> => {
+    await updateSettings({ hiddenPeriods: [] });
+  }, [updateSettings]);
+
   // 6. Manual Recurring Synthesis
   const processRecurring = useCallback(async (): Promise<void> => {
     const startDay = settings?.startDayOfMonth || 1;
@@ -485,6 +512,9 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     updateRecurringItem,
     deleteRecurringItem,
     updateSettings,
+    hidePeriod,
+    unhidePeriod,
+    resetHiddenPeriods,
     addCategory,
     deleteCategory,
     exportData,
