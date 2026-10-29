@@ -526,7 +526,7 @@ describe('budgetEngine', () => {
       const summaryToday = calculateBudgetPeriodSummary(
         transactions,
         ratios,
-        '2026-09',
+        '2026-10',
         0,
         29,
         '2026-09-29'
@@ -545,7 +545,7 @@ describe('budgetEngine', () => {
       const summaryTomorrow = calculateBudgetPeriodSummary(
         transactions,
         ratios,
-        '2026-09',
+        '2026-10',
         0,
         29,
         '2026-09-30'

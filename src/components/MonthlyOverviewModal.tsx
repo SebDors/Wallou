@@ -11,7 +11,7 @@ import {
 import { X, TrendingUp, TrendingDown, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useBudget } from '../context/BudgetContext';
-import { calculateBudgetPeriodSummary, formatCurrency } from '../services/budgetEngine';
+import { calculateBudgetPeriodSummary, formatCurrency, getCurrentPeriodKeyForDay } from '../services/budgetEngine';
 import { Card } from './Card';
 import { PILLAR_NAMES } from '../types/budget';
 
@@ -36,11 +36,12 @@ export const MonthlyOverviewModal: React.FC<MonthlyOverviewModalProps> = ({
 
   // Generate list of months (only months from transactions + current period)
   const monthlyData = useMemo(() => {
+    const startDay = settings?.startDayOfMonth || 1;
     // Find all distinct months from transactions
     const periodSet = new Set<string>();
     transactions.forEach((tx) => {
-      if (tx.date && tx.date.length >= 7) {
-        periodSet.add(tx.date.slice(0, 7));
+      if (tx.date) {
+        periodSet.add(getCurrentPeriodKeyForDay(startDay, new Date(tx.date)));
       }
     });
     periodSet.add(currentPeriodKey);
@@ -48,7 +49,7 @@ export const MonthlyOverviewModal: React.FC<MonthlyOverviewModalProps> = ({
     const sortedKeys = Array.from(periodSet).sort();
 
     return sortedKeys.map((key) => {
-      const summary = calculateBudgetPeriodSummary(transactions, ratios, key);
+      const summary = calculateBudgetPeriodSummary(transactions, ratios, key, 0, startDay);
       const [yearStr, monthStr] = key.split('-');
       const date = new Date(parseInt(yearStr, 10), parseInt(monthStr, 10) - 1, 1);
       const monthLabel = date.toLocaleDateString('fr-FR', { month: 'short' });

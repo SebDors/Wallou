@@ -355,6 +355,11 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       }
 
+      if (partialSettings.startDayOfMonth !== undefined) {
+        const nextStartDay = partialSettings.startDayOfMonth || 1;
+        setCurrentPeriodKey(getCurrentPeriodKey(nextStartDay));
+      }
+
       setSettings((prev) => {
         const next: UserSettings = {
           ...prev,

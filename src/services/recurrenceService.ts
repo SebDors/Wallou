@@ -47,7 +47,35 @@ export function computeRecurringDateInPeriod(
   const year = parseInt(yearStr, 10) || new Date().getFullYear();
   const month = parseInt(monthStr, 10) || new Date().getMonth() + 1;
 
-  if (startDayOfMonth <= 1 || dayOfMonth >= startDayOfMonth) {
+  if (startDayOfMonth <= 1) {
+    const clampedDay = clampDayOfMonth(dayOfMonth, year, month);
+    const dayStr = String(clampedDay).padStart(2, '0');
+    return `${yearStr}-${monthStr}-${dayStr}T08:00:00.000Z`;
+  }
+
+  if (startDayOfMonth > 15) {
+    // End-of-month pay cycle (e.g. 28th):
+    // Period runs from startDayOfMonth of (month - 1) to (startDayOfMonth - 1) of month
+    if (dayOfMonth >= startDayOfMonth) {
+      // Occurs in the previous calendar month
+      const prevMonth = month === 1 ? 12 : month - 1;
+      const prevYear = month === 1 ? year - 1 : year;
+      const clampedDay = clampDayOfMonth(dayOfMonth, prevYear, prevMonth);
+      const prevYearStr = String(prevYear);
+      const prevMonthStr = String(prevMonth).padStart(2, '0');
+      const dayStr = String(clampedDay).padStart(2, '0');
+      return `${prevYearStr}-${prevMonthStr}-${dayStr}T08:00:00.000Z`;
+    }
+
+    // Occurs in the target calendar month
+    const clampedDay = clampDayOfMonth(dayOfMonth, year, month);
+    const dayStr = String(clampedDay).padStart(2, '0');
+    return `${yearStr}-${monthStr}-${dayStr}T08:00:00.000Z`;
+  }
+
+  // Beginning-of-month pay cycle (e.g. 3rd):
+  // Period runs from startDayOfMonth of month to (startDayOfMonth - 1) of (month + 1)
+  if (dayOfMonth >= startDayOfMonth) {
     const clampedDay = clampDayOfMonth(dayOfMonth, year, month);
     const dayStr = String(clampedDay).padStart(2, '0');
     return `${yearStr}-${monthStr}-${dayStr}T08:00:00.000Z`;

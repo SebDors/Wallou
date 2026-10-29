@@ -36,17 +36,17 @@ describe('recurrenceService', () => {
       expect(computeRecurringDateInPeriod(30, '2026-09', 1)).toBe('2026-09-30T08:00:00.000Z');
     });
 
-    it('computes correct dates when startDayOfMonth is 29 (cycle: Sept 29 - Oct 28)', () => {
-      // Day 29 and 30 are in September 2026
-      expect(computeRecurringDateInPeriod(29, '2026-09', 29)).toBe('2026-09-29T08:00:00.000Z');
-      expect(computeRecurringDateInPeriod(30, '2026-09', 29)).toBe('2026-09-30T08:00:00.000Z');
-      // Day 2 is in October 2026 (following month in cycle)
-      expect(computeRecurringDateInPeriod(2, '2026-09', 29)).toBe('2026-10-02T08:00:00.000Z');
+    it('computes correct dates when startDayOfMonth is 29 (cycle: Sept 29 - Oct 28, representing October)', () => {
+      // For October 2026 cycle with startDay 29: runs from Sept 29 to Oct 28
+      expect(computeRecurringDateInPeriod(29, '2026-10', 29)).toBe('2026-09-29T08:00:00.000Z');
+      expect(computeRecurringDateInPeriod(30, '2026-10', 29)).toBe('2026-09-30T08:00:00.000Z');
+      expect(computeRecurringDateInPeriod(2, '2026-10', 29)).toBe('2026-10-02T08:00:00.000Z');
     });
 
-    it('handles year transition for December cycle (Dec 29 - Jan 28)', () => {
-      expect(computeRecurringDateInPeriod(29, '2026-12', 29)).toBe('2026-12-29T08:00:00.000Z');
-      expect(computeRecurringDateInPeriod(5, '2026-12', 29)).toBe('2027-01-05T08:00:00.000Z');
+    it('handles year transition for January cycle (Dec 29 - Jan 28, representing January)', () => {
+      // For January 2027 cycle with startDay 29: runs from Dec 29, 2026 to Jan 28, 2027
+      expect(computeRecurringDateInPeriod(29, '2027-01', 29)).toBe('2026-12-29T08:00:00.000Z');
+      expect(computeRecurringDateInPeriod(5, '2027-01', 29)).toBe('2027-01-05T08:00:00.000Z');
     });
   });
 
@@ -174,7 +174,7 @@ describe('recurrenceService', () => {
         },
       ];
 
-      const generated = processRecurringTransactions(customItems, [], '2026-09', 29);
+      const generated = processRecurringTransactions(customItems, [], '2026-10', 29);
 
       expect(generated.length).toBe(3);
 

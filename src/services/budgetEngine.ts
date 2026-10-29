@@ -88,18 +88,36 @@ export function getPeriodDateBounds(
   const year = parseInt(yearStr, 10) || new Date().getFullYear();
   const month = parseInt(monthStr, 10) || new Date().getMonth() + 1;
 
-  const effectiveStartDay = Math.min(Math.max(1, startDayOfMonth), getDaysInMonth(year, month));
-
-  if (effectiveStartDay <= 1) {
+  if (startDayOfMonth <= 1) {
     const totalDays = getDaysInMonth(year, month);
     const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
     const endDate = new Date(Date.UTC(year, month - 1, totalDays, 23, 59, 59, 999));
     return { startDate, endDate };
   }
 
+  if (startDayOfMonth > 15) {
+    // End-of-month pay cycle (e.g. 28th):
+    // The budget period for month YYYY-MM (e.g. November) starts on startDayOfMonth of previous month (October 28)
+    // and ends on (startDayOfMonth - 1) of the target month (November 27).
+    const prevMonth = month === 1 ? 12 : month - 1;
+    const prevYear = month === 1 ? year - 1 : year;
+    const effectiveStartDay = Math.min(startDayOfMonth, getDaysInMonth(prevYear, prevMonth));
+    const effectiveEndStartDay = Math.min(startDayOfMonth, getDaysInMonth(year, month));
+
+    const startDate = new Date(Date.UTC(prevYear, prevMonth - 1, effectiveStartDay, 0, 0, 0, 0));
+    const nextPeriodStartDate = new Date(Date.UTC(year, month - 1, effectiveEndStartDay, 0, 0, 0, 0));
+    const endDate = new Date(nextPeriodStartDate.getTime() - 1);
+
+    return { startDate, endDate };
+  }
+
+  // Beginning-of-month pay cycle (e.g. 3rd):
+  // The budget period for month YYYY-MM starts on startDayOfMonth of target month (e.g. Sept 3)
+  // and ends on (startDayOfMonth - 1) of the following month (e.g. Oct 2).
+  const effectiveStartDay = Math.min(startDayOfMonth, getDaysInMonth(year, month));
   const nextMonth = month === 12 ? 1 : month + 1;
   const nextYear = month === 12 ? year + 1 : year;
-  const effectiveNextStartDay = Math.min(Math.max(1, startDayOfMonth), getDaysInMonth(nextYear, nextMonth));
+  const effectiveNextStartDay = Math.min(startDayOfMonth, getDaysInMonth(nextYear, nextMonth));
 
   const startDate = new Date(Date.UTC(year, month - 1, effectiveStartDay, 0, 0, 0, 0));
   const nextPeriodStartDate = new Date(Date.UTC(nextYear, nextMonth - 1, effectiveNextStartDay, 0, 0, 0, 0));
@@ -154,7 +172,25 @@ export function getCurrentPeriodKeyForDay(
   const month = currentDate.getMonth() + 1;
   const day = currentDate.getDate();
 
-  if (startDayOfMonth <= 1 || day >= startDayOfMonth) {
+  if (startDayOfMonth <= 1) {
+    return `${year}-${String(month).padStart(2, '0')}`;
+  }
+
+  if (startDayOfMonth > 15) {
+    // End-of-month pay cycle (e.g. 28th):
+    // From day >= startDayOfMonth (e.g. Oct 28 - Oct 31), we budget for the UPCOMING month (Nov: 2026-11)
+    // From day < startDayOfMonth (e.g. Nov 1 - Nov 27), we are in the CURRENT month (Nov: 2026-11)
+    if (day >= startDayOfMonth) {
+      const nextDate = new Date(year, month, 1);
+      return `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+    }
+    return `${year}-${String(month).padStart(2, '0')}`;
+  }
+
+  // Beginning-of-month pay cycle (e.g. 3rd):
+  // From day >= startDayOfMonth (e.g. Sept 3 - Sept 30), we are in the CURRENT month (Sept: 2026-09)
+  // From day < startDayOfMonth (e.g. Sept 1 - Sept 2), we are in the PREVIOUS month (Aug: 2026-08)
+  if (day >= startDayOfMonth) {
     return `${year}-${String(month).padStart(2, '0')}`;
   }
 
