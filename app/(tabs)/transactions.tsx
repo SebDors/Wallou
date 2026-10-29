@@ -27,6 +27,9 @@ import {
   Calculator,
   Check,
   CheckSquare,
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../src/context/ThemeContext';
@@ -38,7 +41,7 @@ import { Card } from '../../src/components/Card';
 import { SwipeableTransactionRow } from '../../src/components/SwipeableTransactionRow';
 import { TransactionDetailModal } from '../../src/components/TransactionDetailModal';
 import { useDialog } from '../../src/context/DialogContext';
-import { formatCurrency, round2 } from '../../src/services/budgetEngine';
+import { formatCurrency, round2, getCurrentPeriodKeyForDay, formatPeriodSubLabel } from '../../src/services/budgetEngine';
 import { PillarId, Transaction } from '../../src/types/budget';
 
 type FilterType = 'all' | 'needs' | 'wants' | 'savings' | 'income';
@@ -47,7 +50,15 @@ export default function TransactionsScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const params = useLocalSearchParams<{ filter?: string }>();
-  const { transactions, deleteTransaction, updateTransaction, settings, categories } = useBudget();
+  const {
+    transactions,
+    deleteTransaction,
+    updateTransaction,
+    settings,
+    categories,
+    currentPeriodKey,
+    setPeriodKey,
+  } = useBudget();
   const { openQuickEntry } = useQuickEntry();
   const { showConfirm, showError } = useDialog();
 
@@ -59,6 +70,7 @@ export default function TransactionsScreen() {
     return 'all';
   });
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [isAllPeriods, setIsAllPeriods] = useState(false);
 
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedTxIds, setSelectedTxIds] = useState<Set<string>>(new Set());
@@ -86,13 +98,57 @@ export default function TransactionsScreen() {
   const [startEditing, setStartEditing] = useState(false);
 
   const currency = settings?.currency || '€';
+  const startDayOfMonth = settings?.startDayOfMonth || 1;
+
+  // Period parsing & month navigation
+  const [yearStr, monthStr] = (currentPeriodKey || '').split('-');
+  const year = parseInt(yearStr, 10) || new Date().getFullYear();
+  const month = parseInt(monthStr, 10) || new Date().getMonth() + 1;
+
+  const handlePrevMonth = () => {
+    try {
+      Haptics.selectionAsync();
+    } catch {}
+    const prevDate = new Date(year, month - 2, 1);
+    const newKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+    setPeriodKey(newKey);
+  };
+
+  const handleNextMonth = () => {
+    try {
+      Haptics.selectionAsync();
+    } catch {}
+    const nextDate = new Date(year, month, 1);
+    const newKey = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+    setPeriodKey(newKey);
+  };
+
+  const periodDate = new Date(year, month - 1, 1);
+  const monthNameRaw = periodDate.toLocaleDateString('fr-FR', {
+    month: 'long',
+    year: 'numeric',
+  });
+  const formattedPeriod = monthNameRaw.charAt(0).toUpperCase() + monthNameRaw.slice(1);
+  const periodSubLabel = formatPeriodSubLabel(currentPeriodKey, startDayOfMonth);
+
+  // Filter transactions strictly by active period unless user chose all periods
+  const periodTransactions = useMemo(() => {
+    if (isAllPeriods) {
+      return transactions;
+    }
+    return transactions.filter((tx) => {
+      if (!tx.date) return false;
+      const txKey = getCurrentPeriodKeyForDay(startDayOfMonth, new Date(tx.date));
+      return txKey === currentPeriodKey;
+    });
+  }, [transactions, isAllPeriods, currentPeriodKey, startDayOfMonth]);
 
 
   // Available categories strictly matching user-defined categories from Settings
   const availableCategories = useMemo(() => {
     if (!categories || categories.length === 0) return [];
 
-    let base = transactions.filter((t) => t.type !== 'refund');
+    let base = periodTransactions.filter((t) => t.type !== 'refund');
     if (activeFilter === 'needs') {
       base = base.filter((t) => t.pillarId === 'needs');
     } else if (activeFilter === 'wants') {
@@ -112,7 +168,7 @@ export default function TransactionsScreen() {
         return { name: clean, count };
       })
       .filter((c) => c.name.length > 0);
-  }, [categories, transactions, activeFilter]);
+  }, [categories, periodTransactions, activeFilter]);
 
   // If selected category is no longer present in available categories, reset to all
   useEffect(() => {
@@ -123,7 +179,7 @@ export default function TransactionsScreen() {
 
   // Filtered transactions (excluding phantom refund transactions)
   const filteredTransactions = useMemo(() => {
-    let result = transactions.filter((t) => t.type !== 'refund');
+    let result = periodTransactions.filter((t) => t.type !== 'refund');
 
     // Filter by type / pillar
     if (activeFilter === 'needs') {
@@ -156,7 +212,7 @@ export default function TransactionsScreen() {
 
     // Chronological order: newest first
     return result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [transactions, activeFilter, selectedCategory, searchQuery]);
+  }, [periodTransactions, activeFilter, selectedCategory, searchQuery]);
 
   // Group by date with future/upcoming distinction within 3 days and dual delimiters
   const groupedSections = useMemo(() => {
@@ -172,6 +228,7 @@ export default function TransactionsScreen() {
       title: string;
       dateStr: string;
       isFuture: boolean;
+      periodKey: string;
       data: Transaction[];
     }
 
@@ -190,6 +247,7 @@ export default function TransactionsScreen() {
       const txDateStr = tx.date ? tx.date.slice(0, 10) : todayStr;
       let label: string;
       const isFuture = txDateStr > todayStr;
+      const txPeriodKey = getCurrentPeriodKeyForDay(startDayOfMonth, new Date(tx.date || todayStr));
 
       if (txDateStr === todayStr) {
         label = "Aujourd'hui";
@@ -209,6 +267,7 @@ export default function TransactionsScreen() {
           title: label,
           dateStr: txDateStr,
           isFuture,
+          periodKey: txPeriodKey,
           data: [],
         });
       }
@@ -219,16 +278,26 @@ export default function TransactionsScreen() {
     let foundFirstFuture = false;
     let foundFirstNonFuture = false;
 
-    const sections: {
+    let lastPeriodKeySeen: string | null = null;
+
+    interface SectionItem {
       title: string;
       dateStr: string;
       isFuture: boolean;
       delimiterText?: string;
+      periodDelimiter?: {
+        key: string;
+        title: string;
+        subLabel: string;
+      };
       data: Transaction[];
-    }[] = [];
+    }
+
+    const sections: SectionItem[] = [];
 
     for (const group of groupMap.values()) {
       let delimiterText: string | undefined;
+      let periodDelimiter: SectionItem['periodDelimiter'];
 
       // 1. Delimiter above first future section
       if (group.isFuture && !foundFirstFuture) {
@@ -242,17 +311,34 @@ export default function TransactionsScreen() {
         foundFirstNonFuture = true;
       }
 
+      // 3. In all periods mode: big period delimiter when month changes
+      if (isAllPeriods && group.periodKey !== lastPeriodKeySeen) {
+        const [pYearStr, pMonthStr] = group.periodKey.split('-');
+        const pDate = new Date(parseInt(pYearStr, 10), parseInt(pMonthStr, 10) - 1, 1);
+        const pNameRaw = pDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+        const pFormatted = pNameRaw.charAt(0).toUpperCase() + pNameRaw.slice(1);
+        const pSub = formatPeriodSubLabel(group.periodKey, startDayOfMonth);
+
+        periodDelimiter = {
+          key: group.periodKey,
+          title: `Mois de ${pFormatted}`,
+          subLabel: pSub,
+        };
+        lastPeriodKeySeen = group.periodKey;
+      }
+
       sections.push({
         title: group.title,
         dateStr: group.dateStr,
         isFuture: group.isFuture,
         delimiterText,
+        periodDelimiter,
         data: group.data,
       });
     }
 
     return sections;
-  }, [filteredTransactions]);
+  }, [filteredTransactions, isAllPeriods, startDayOfMonth]);
 
   const toggleSelectMode = () => {
     try {
@@ -449,6 +535,103 @@ export default function TransactionsScreen() {
           </View>
         )}
 
+        {/* Period Navigation & Toggle */}
+        <View style={styles.periodNavContainer}>
+          <View
+            style={[
+              styles.periodNavCard,
+              {
+                backgroundColor: theme.colors.bg.surfaceSubtle,
+                borderColor: theme.colors.border.subtle,
+              },
+            ]}
+          >
+            <Pressable
+              onPress={handlePrevMonth}
+              disabled={isAllPeriods}
+              style={({ pressed }) => [
+                styles.periodNavArrowBtn,
+                { opacity: isAllPeriods ? 0.3 : pressed ? 0.6 : 1 },
+              ]}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Mois précédent"
+            >
+              <ChevronLeft size={16} color={theme.colors.text.primary} />
+            </Pressable>
+
+            <View style={styles.periodCenterInfo}>
+              <Text
+                style={[
+                  theme.typography.bodyLarge,
+                  { color: theme.colors.text.primary, fontWeight: '700' },
+                ]}
+                numberOfLines={1}
+              >
+                {isAllPeriods ? 'Toutes les opérations' : formattedPeriod}
+              </Text>
+              <Text
+                style={[
+                  theme.typography.caption,
+                  { color: theme.colors.text.secondary, fontSize: 11 },
+                ]}
+                numberOfLines={1}
+              >
+                {isAllPeriods ? 'Historique complet' : periodSubLabel}
+              </Text>
+            </View>
+
+            <Pressable
+              onPress={handleNextMonth}
+              disabled={isAllPeriods}
+              style={({ pressed }) => [
+                styles.periodNavArrowBtn,
+                { opacity: isAllPeriods ? 0.3 : pressed ? 0.6 : 1 },
+              ]}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Mois suivant"
+            >
+              <ChevronRight size={16} color={theme.colors.text.primary} />
+            </Pressable>
+          </View>
+
+          <Pressable
+            onPress={() => {
+              try {
+                Haptics.selectionAsync();
+              } catch {}
+              setIsAllPeriods((prev) => !prev);
+            }}
+            style={[
+              styles.allPeriodsPill,
+              {
+                backgroundColor: isAllPeriods
+                  ? theme.colors.pillar.savings
+                  : theme.colors.bg.surfaceSubtle,
+                borderColor: isAllPeriods
+                  ? theme.colors.pillar.savings
+                  : theme.colors.border.subtle,
+              },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={isAllPeriods ? 'Afficher le mois sélectionné' : 'Afficher tous les mois'}
+          >
+            <Text
+              style={[
+                theme.typography.caption,
+                {
+                  color: isAllPeriods ? '#FFFFFF' : theme.colors.text.secondary,
+                  fontWeight: isAllPeriods ? '700' : '600',
+                  fontSize: 11,
+                },
+              ]}
+            >
+              {isAllPeriods ? 'Ce mois' : 'Tous'}
+            </Text>
+          </Pressable>
+        </View>
+
         {/* Search Input */}
         <View
           style={[
@@ -642,6 +825,47 @@ export default function TransactionsScreen() {
         showsVerticalScrollIndicator={false}
         renderSectionHeader={({ section }) => (
           <View style={{ backgroundColor: theme.colors.bg.canvas }}>
+            {section.periodDelimiter && (
+              <View
+                style={[
+                  styles.periodDelimiterCard,
+                  {
+                    backgroundColor: theme.colors.bg.surfaceSubtle,
+                    borderColor: theme.colors.border.subtle,
+                  },
+                ]}
+              >
+                <View style={styles.periodDelimiterHeader}>
+                  <View
+                    style={[
+                      styles.periodDelimiterIconBg,
+                      { backgroundColor: theme.colors.pillar.savings + '22' },
+                    ]}
+                  >
+                    <Calendar size={16} color={theme.colors.pillar.savings} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text
+                      style={[
+                        theme.typography.title2,
+                        { color: theme.colors.text.primary, fontWeight: '700' },
+                      ]}
+                    >
+                      {section.periodDelimiter.title}
+                    </Text>
+                    <Text
+                      style={[
+                        theme.typography.caption,
+                        { color: theme.colors.text.secondary, marginTop: 1 },
+                      ]}
+                    >
+                      {section.periodDelimiter.subLabel}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
             {section.delimiterText && (
               <View style={styles.upcomingDelimiter}>
                 <View style={[styles.delimiterLine, { backgroundColor: theme.colors.border.subtle }]} />
@@ -829,7 +1053,9 @@ export default function TransactionsScreen() {
             >
               {searchQuery
                 ? `Aucun résultat pour "${searchQuery}"`
-                : 'Ajoutez une opération pour commencer votre suivi.'}
+                : isAllPeriods
+                ? 'Ajoutez une opération pour commencer votre suivi.'
+                : `Aucune opération enregistrée pour ${formattedPeriod}.`}
             </Text>
             <Pressable
               onPress={openQuickEntry}
@@ -1340,6 +1566,60 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 8,
+  },
+  periodNavContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  periodNavCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+  },
+  periodNavArrowBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  periodCenterInfo: {
+    alignItems: 'center',
+    flex: 1,
+    paddingHorizontal: 4,
+  },
+  allPeriodsPill: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  periodDelimiterCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginTop: 18,
+    marginBottom: 8,
+  },
+  periodDelimiterHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  periodDelimiterIconBg: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   selectToggleBtn: {
     flexDirection: 'row',
