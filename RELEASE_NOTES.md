@@ -1,19 +1,17 @@
-# 🚀 Wallou — Version 1.3.5
+# 🚀 Wallou — Version 1.3.6
 
-Bienvenue sur la mise à jour **1.3.5** de **Wallou** !
+Bienvenue sur la mise à jour **1.3.6** de **Wallou** !
 
 ---
 
-## 🌟 Améliorations de la Version 1.3.5
+## 🌟 Nouveautés & Améliorations de la Version 1.3.6
 
-### 📈 Courbe du Solde : Tracé d'origine restauré & Courbe rouge en solde négatif
-* **Retour au tracé et à l'échelle d'origine** : Restauration complète du cadrage initial de la courbe d'évolution du solde et de son axe discret de référence, sans déformation ni décalage artificiel de l'échelle verticale.
-* **Courbe dynamique rouge/verte** : Dès que le solde est négatif, la courbe, son dégradé d'aire et le curseur interactif passent en rouge vif pour signaler visuellement le découvert, et restent en vert quand le solde est positif.
-
-### 🔘 Bouton Remboursement épuré
-* **Intitulé net et homogène** : Le bouton affiche simplement **« Remboursement »** de la même manière que « Modifier » et « Supprimer », avec une typographie stable et naturelle sans forçage de taille.
+### 📅 Alignement du Mois Budgétaire sur les Cycles de Paie de Fin de Mois
+* **Identification fidèle du mois analysé** : Lorsque votre date de début de mois est configurée en fin de mois (par exemple le 28), la période démarrant le 28 octobre et allant jusqu'au 27 novembre est désormais correctement rattachée et affichée comme étant le **Mois de novembre** (au lieu d'octobre). Votre budget de paie finance et correspond ainsi exactement au mois de destination visé.
+* **Synchronisation instantanée** : La modification du jour de début de mois dans les réglages synchronise immédiatement la période budgétaire courante affichée sans nécessiter de redémarrage.
+* **Historique et vue d'ensemble** : Les synthèses mensuelles et regroupements par période appliquent cette même règle pour une cohérence parfaite sur tous les écrans.
 
 ---
 
 ### 📱 Installation de l'APK Android
-Téléchargez le fichier `Wallou-v1.3.5.apk` ci-dessous et installez-le directement sur votre appareil Android.
+Téléchargez le fichier `Wallou-v1.3.6.apk` ci-dessous et installez-le directement sur votre appareil Android.
