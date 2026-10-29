@@ -119,6 +119,11 @@ export function validateAndSanitizeBackup(
     ratios,
     theme,
     hasCompletedOnboarding,
+    customCategories: Array.isArray(rawSettings.customCategories) ? rawSettings.customCategories : undefined,
+    rolloverMode: rawSettings.rolloverMode,
+    startingLiquidity: typeof rawSettings.startingLiquidity === 'number' ? rawSettings.startingLiquidity : undefined,
+    startDayOfMonth: typeof rawSettings.startDayOfMonth === 'number' ? rawSettings.startDayOfMonth : undefined,
+    hiddenPeriods: Array.isArray(rawSettings.hiddenPeriods) ? rawSettings.hiddenPeriods : undefined,
   };
 
   // Phase 4: Transactions Sanitization

@@ -68,6 +68,7 @@ export interface UserSettings {
   rolloverMode?: RolloverMode;   // default 'reset'
   startingLiquidity?: number;    // default 0
   startDayOfMonth?: number;      // 1 to 31, default 1 (first day of billing cycle)
+  hiddenPeriods?: string[];      // list of hidden period keys ("YYYY-MM")
 }
 
 // ==========================================
