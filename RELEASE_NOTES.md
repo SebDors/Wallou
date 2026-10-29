@@ -1,20 +1,17 @@
-# 🚀 Wallou — Version 1.3.7
+# 🚀 Wallou — Version 1.3.8
 
-Bienvenue sur la mise à jour **1.3.7** de **Wallou** !
+Bienvenue sur la mise à jour **1.3.8** de **Wallou** !
 
 ---
 
-## 🌟 Nouveautés & Améliorations de la Version 1.3.7
+## 🌟 Nouveautés & Améliorations de la Version 1.3.8
 
-### 📜 Aperçu Mensuel : Défilement vertical fluide sur tous les mois
-* **Scroll complet et naturel** : La feuille modale de l'aperçu mensuel bénéficie désormais d'un dimensionnement plein écran (`height: 92%`) et d'un `ScrollView` déverrouillé avec indicateur de défilement visible et marge de sécurité basse. Vous pouvez désormais faire défiler l'historique de manière fluide jusqu'au premier mois sans être bloqué ni limité à un mois et demi.
-
-### 🗑️ Suppression / Masquage d'un mois en un clic
-* **Petit bouton dédié à côté de la flèche** : Chaque carte de mois propose maintenant un petit bouton discret placé juste à gauche de la flèche de sélection (`ChevronRight`).
-* **Masquage instantané (« Juste un petit clic »)** : Un simple clic masque le mois désiré de la liste et du graphique comparatif, sans popup intrusive et sans risque d'effacer vos données financières.
-* **Option de récupération** : Lorsqu'un ou plusieurs mois sont masqués, un bandeau discret apparaît pour indiquer le nombre de mois masqués et permet de **« Tout réafficher »** à tout moment.
+### 📅 Opérations filtrées par mois & Navigateur de période
+* **Filtrage automatique par mois actif** : La liste des opérations affiche désormais exclusivement les transactions du mois budgétaire sélectionné (par exemple, lors de la consultation d'octobre, les opérations d'aujourd'hui appartenant au cycle de novembre ne viennent plus polluer la liste).
+* **Navigateur de période intégré** : Un sélecteur avec flèches (`<` et `>`), le nom du mois et les dates exactes du cycle budgétaire est présent en haut de l'écran « Opérations ». Vous pouvez naviguer d'un mois à l'autre en un tap, en parfaite synchronisation avec la page d'accueil.
+* **Bascule « Tous / Ce mois » & Grosse délimitation** : Un bouton permet de basculer sur l'historique complet de toutes les opérations. Dans ce mode global, chaque cycle mensuel est séparé par un encadré de délimitation bien visible précisant le mois et la plage de dates correspondante.
 
 ---
 
 ### 📱 Installation de l'APK Android
-Téléchargez le fichier `Wallou-v1.3.7.apk` ci-dessous et installez-le directement sur votre appareil Android.
+Téléchargez le fichier `Wallou-v1.3.8.apk` ci-dessous et installez-le directement sur votre appareil Android.
