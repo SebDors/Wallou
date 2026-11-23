@@ -9,6 +9,8 @@ import {
   Modal,
   Alert,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -41,7 +43,7 @@ import { Card } from '../../src/components/Card';
 import { SwipeableTransactionRow } from '../../src/components/SwipeableTransactionRow';
 import { TransactionDetailModal } from '../../src/components/TransactionDetailModal';
 import { useDialog } from '../../src/context/DialogContext';
-import { formatCurrency, round2, getCurrentPeriodKeyForDay, formatPeriodSubLabel } from '../../src/services/budgetEngine';
+import { formatCurrency, round2, getCurrentPeriodKeyForDay, formatPeriodSubLabel, distributeBatchRefund } from '../../src/services/budgetEngine';
 import { PillarId, Transaction } from '../../src/types/budget';
 
 type FilterType = 'all' | 'needs' | 'wants' | 'savings' | 'income';
@@ -76,6 +78,8 @@ export default function TransactionsScreen() {
   const [selectedTxIds, setSelectedTxIds] = useState<Set<string>>(new Set());
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
   const [refundPercent, setRefundPercent] = useState('50');
+  const [refundMode, setRefundMode] = useState<'percent' | 'amount'>('percent');
+  const [refundAmountInput, setRefundAmountInput] = useState('');
 
   useEffect(() => {
     if (params.filter && ['all', 'needs', 'wants', 'savings', 'income'].includes(params.filter)) {
@@ -394,19 +398,63 @@ export default function TransactionsScreen() {
   }, [selectedExpenses]);
 
   const parsedPercent = parseFloat(refundPercent.replace(',', '.')) || 0;
+  const parsedAmount = parseFloat(refundAmountInput.replace(',', '.')) || 0;
+  const isAmountExceedingTotal =
+    refundMode === 'amount' && parsedAmount > totalSelectedAmount;
+
   const calculatedRefund = useMemo(() => {
-    return round2(totalSelectedAmount * (parsedPercent / 100));
-  }, [totalSelectedAmount, parsedPercent]);
+    if (refundMode === 'amount') {
+      return round2(Math.max(0, Math.min(totalSelectedAmount, parsedAmount)));
+    }
+    return round2(totalSelectedAmount * (Math.max(0, Math.min(100, parsedPercent)) / 100));
+  }, [refundMode, totalSelectedAmount, parsedPercent, parsedAmount]);
 
   const calculatedRemaining = useMemo(() => {
     return round2(Math.max(0, totalSelectedAmount - calculatedRefund));
   }, [totalSelectedAmount, calculatedRefund]);
 
+  const equivalentPercent = useMemo(() => {
+    if (refundMode === 'percent') {
+      return Math.round(Math.max(0, Math.min(100, parsedPercent)) * 10) / 10;
+    }
+    if (totalSelectedAmount <= 0) return 0;
+    return Math.round((calculatedRefund / totalSelectedAmount) * 1000) / 10;
+  }, [refundMode, parsedPercent, totalSelectedAmount, calculatedRefund]);
+
+  const handleSwitchRefundMode = (nextMode: 'percent' | 'amount') => {
+    if (nextMode === refundMode) return;
+    try {
+      Haptics.selectionAsync();
+    } catch {}
+    if (nextMode === 'amount') {
+      const currentAmt = round2(totalSelectedAmount * (Math.max(0, Math.min(100, parsedPercent)) / 100));
+      setRefundAmountInput(currentAmt > 0 ? String(currentAmt).replace('.', ',') : '');
+    } else {
+      const eqPct =
+        totalSelectedAmount > 0
+          ? Math.round((Math.min(totalSelectedAmount, Math.max(0, parsedAmount)) / totalSelectedAmount) * 1000) / 10
+          : 50;
+      setRefundPercent(String(eqPct));
+    }
+    setRefundMode(nextMode);
+  };
+
   const handleApplyBatchRefund = async () => {
-    const pct = parseFloat(refundPercent.replace(',', '.')) || 0;
-    if (pct < 0 || pct > 100) {
-      showError('Pourcentage invalide', 'Veuillez saisir un pourcentage entre 0 et 100.');
-      return;
+    if (refundMode === 'percent') {
+      const pct = parseFloat(refundPercent.replace(',', '.'));
+      if (isNaN(pct) || pct < 0 || pct > 100) {
+        showError('Pourcentage invalide', 'Veuillez saisir un pourcentage entre 0 et 100.');
+        return;
+      }
+    } else {
+      const amt = parseFloat(refundAmountInput.replace(',', '.'));
+      if (isNaN(amt) || amt < 0 || amt > totalSelectedAmount) {
+        showError(
+          'Montant invalide',
+          `Veuillez saisir un montant entre 0 et ${formatCurrency(totalSelectedAmount, currency)}.`
+        );
+        return;
+      }
     }
 
     try {
@@ -414,12 +462,24 @@ export default function TransactionsScreen() {
     } catch {}
 
     const selectedList = transactions.filter((t) => selectedTxIds.has(t.id) && t.type === 'expense');
-    for (const tx of selectedList) {
-      const txRefund = round2(tx.amount * (pct / 100));
-      await updateTransaction({
-        ...tx,
-        refundedAmount: txRefund,
-      });
+    if (refundMode === 'percent') {
+      const pct = parseFloat(refundPercent.replace(',', '.')) || 0;
+      for (const tx of selectedList) {
+        const txRefund = round2(tx.amount * (pct / 100));
+        await updateTransaction({
+          ...tx,
+          refundedAmount: txRefund,
+        });
+      }
+    } else {
+      const targetAmt = parseFloat(refundAmountInput.replace(',', '.')) || 0;
+      const distribution = distributeBatchRefund(selectedList, targetAmt);
+      for (const tx of selectedList) {
+        await updateTransaction({
+          ...tx,
+          refundedAmount: distribution[tx.id] ?? 0,
+        });
+      }
     }
 
     setShowCalculatorModal(false);
@@ -1153,16 +1213,24 @@ export default function TransactionsScreen() {
         animationType="slide"
         onRequestClose={() => setShowCalculatorModal(false)}
       >
-        <View style={styles.modalBackdrop}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalBackdrop}
+        >
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setShowCalculatorModal(false)}
+          />
           <View
             style={[
               styles.calcModalSheet,
               {
+                width: '100%',
+                maxWidth: 440,
                 backgroundColor: theme.colors.bg.surface,
                 borderColor: theme.colors.border.subtle,
-                borderTopLeftRadius: theme.radii.xl,
-                borderTopRightRadius: theme.radii.xl,
-                paddingBottom: insets.bottom > 0 ? insets.bottom + 16 : 24,
+                borderRadius: theme.radii.xl,
+                paddingBottom: 20,
               },
             ]}
           >
@@ -1210,77 +1278,245 @@ export default function TransactionsScreen() {
               </Text>
             </View>
 
-            {/* Percentage selector */}
-            <Text style={[theme.typography.caption, { color: theme.colors.text.secondary, marginTop: 14, marginBottom: 8 }]}>
-              Pourcentage à rembourser
-            </Text>
-            <View style={styles.presetPercentRow}>
-              {['50', '30', '25', '20', '100'].map((p) => {
-                const isActive = refundPercent === p;
-                return (
-                  <Pressable
-                    key={p}
-                    onPress={() => {
-                      setRefundPercent(p);
-                      try {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      } catch {}
-                    }}
-                    style={[
-                      styles.presetPercentChip,
-                      {
-                        backgroundColor: isActive
-                          ? theme.colors.pillar.savings
-                          : theme.colors.bg.surfaceSubtle,
-                        borderColor: isActive
-                          ? theme.colors.pillar.savings
-                          : theme.colors.border.subtle,
-                        borderRadius: theme.radii.full,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        theme.typography.caption,
-                        {
-                          color: isActive ? '#FFFFFF' : theme.colors.text.secondary,
-                          fontWeight: isActive ? '700' : '500',
-                        },
-                      ]}
-                    >
-                      {p}%
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {/* Custom percent input */}
+            {/* Mode Segmented Control: Pourcentage (%) vs Montant (€) */}
             <View
               style={[
-                styles.customPercentInputRow,
+                styles.modeSegmentedContainer,
                 {
                   backgroundColor: theme.colors.bg.surfaceSubtle,
-                  borderColor: theme.colors.border.subtle,
-                  borderRadius: theme.radii.md,
+                  borderRadius: theme.radii.full,
                 },
               ]}
             >
-              <TextInput
-                value={refundPercent}
-                onChangeText={setRefundPercent}
-                keyboardType="numeric"
-                placeholder="50"
-                placeholderTextColor={theme.colors.text.muted}
+              <Pressable
+                onPress={() => handleSwitchRefundMode('percent')}
                 style={[
-                  styles.customPercentInput,
-                  { color: theme.colors.text.primary },
+                  styles.modeSegmentedBtn,
+                  refundMode === 'percent' && {
+                    backgroundColor: theme.colors.bg.surface,
+                    borderRadius: theme.radii.full,
+                    shadowColor: '#000',
+                    shadowOpacity: 0.08,
+                    shadowRadius: 2,
+                    elevation: 2,
+                  },
                 ]}
-              />
-              <Text style={[theme.typography.body, { color: theme.colors.text.secondary, fontWeight: '700', marginRight: 12 }]}>
-                %
-              </Text>
+              >
+                <Text
+                  style={[
+                    theme.typography.caption,
+                    {
+                      color:
+                        refundMode === 'percent'
+                          ? theme.colors.text.primary
+                          : theme.colors.text.muted,
+                      fontWeight: refundMode === 'percent' ? '700' : '500',
+                    },
+                  ]}
+                >
+                  Pourcentage (%)
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => handleSwitchRefundMode('amount')}
+                style={[
+                  styles.modeSegmentedBtn,
+                  refundMode === 'amount' && {
+                    backgroundColor: theme.colors.bg.surface,
+                    borderRadius: theme.radii.full,
+                    shadowColor: '#000',
+                    shadowOpacity: 0.08,
+                    shadowRadius: 2,
+                    elevation: 2,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    theme.typography.caption,
+                    {
+                      color:
+                        refundMode === 'amount'
+                          ? theme.colors.text.primary
+                          : theme.colors.text.muted,
+                      fontWeight: refundMode === 'amount' ? '700' : '500',
+                    },
+                  ]}
+                >
+                  Montant ({currency})
+                </Text>
+              </Pressable>
             </View>
+
+            {refundMode === 'percent' ? (
+              <>
+                <Text style={[theme.typography.caption, { color: theme.colors.text.secondary, marginTop: 12, marginBottom: 8 }]}>
+                  Pourcentage à rembourser
+                </Text>
+                <View style={styles.presetPercentRow}>
+                  {['50', '30', '25', '20', '100'].map((p) => {
+                    const isActive = refundPercent === p;
+                    return (
+                      <Pressable
+                        key={p}
+                        onPress={() => {
+                          setRefundPercent(p);
+                          try {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          } catch {}
+                        }}
+                        style={[
+                          styles.presetPercentChip,
+                          {
+                            backgroundColor: isActive
+                              ? theme.colors.pillar.savings
+                              : theme.colors.bg.surfaceSubtle,
+                            borderColor: isActive
+                              ? theme.colors.pillar.savings
+                              : theme.colors.border.subtle,
+                            borderRadius: theme.radii.full,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            theme.typography.caption,
+                            {
+                              color: isActive ? '#FFFFFF' : theme.colors.text.secondary,
+                              fontWeight: isActive ? '700' : '500',
+                            },
+                          ]}
+                        >
+                          {p}%
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <View
+                  style={[
+                    styles.customPercentInputRow,
+                    {
+                      backgroundColor: theme.colors.bg.surfaceSubtle,
+                      borderColor: theme.colors.border.subtle,
+                      borderRadius: theme.radii.md,
+                    },
+                  ]}
+                >
+                  <TextInput
+                    value={refundPercent}
+                    onChangeText={setRefundPercent}
+                    keyboardType="decimal-pad"
+                    placeholder="50"
+                    placeholderTextColor={theme.colors.text.muted}
+                    style={[
+                      styles.customPercentInput,
+                      { color: theme.colors.text.primary },
+                    ]}
+                  />
+                  <Text style={[theme.typography.body, { color: theme.colors.text.secondary, fontWeight: '700', marginRight: 12 }]}>
+                    %
+                  </Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={[theme.typography.caption, { color: theme.colors.text.secondary, marginTop: 12, marginBottom: 8 }]}>
+                  Montant remboursé (réparti proportionnellement)
+                </Text>
+                <View style={styles.presetPercentRow}>
+                  {[
+                    { label: '25 %', factor: 0.25 },
+                    { label: 'Moitié', factor: 0.5 },
+                    { label: '75 %', factor: 0.75 },
+                    { label: 'Total', factor: 1 },
+                  ].map((preset) => {
+                    const presetAmt = round2(totalSelectedAmount * preset.factor);
+                    const isActive =
+                      totalSelectedAmount > 0 &&
+                      Math.abs(parsedAmount - presetAmt) < 0.01 &&
+                      refundAmountInput.trim().length > 0;
+                    return (
+                      <Pressable
+                        key={preset.label}
+                        onPress={() => {
+                          setRefundAmountInput(String(presetAmt).replace('.', ','));
+                          try {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          } catch {}
+                        }}
+                        style={[
+                          styles.presetPercentChip,
+                          {
+                            backgroundColor: isActive
+                              ? theme.colors.pillar.savings
+                              : theme.colors.bg.surfaceSubtle,
+                            borderColor: isActive
+                              ? theme.colors.pillar.savings
+                              : theme.colors.border.subtle,
+                            borderRadius: theme.radii.full,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            theme.typography.caption,
+                            {
+                              color: isActive ? '#FFFFFF' : theme.colors.text.secondary,
+                              fontWeight: isActive ? '700' : '500',
+                            },
+                          ]}
+                        >
+                          {preset.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <View
+                  style={[
+                    styles.customPercentInputRow,
+                    {
+                      backgroundColor: theme.colors.bg.surfaceSubtle,
+                      borderColor: isAmountExceedingTotal
+                        ? theme.colors.status.overrun
+                        : theme.colors.border.subtle,
+                      borderRadius: theme.radii.md,
+                      marginBottom: isAmountExceedingTotal ? 6 : 16,
+                    },
+                  ]}
+                >
+                  <TextInput
+                    value={refundAmountInput}
+                    onChangeText={setRefundAmountInput}
+                    keyboardType="decimal-pad"
+                    placeholder={`Ex: ${round2(totalSelectedAmount / 2).toFixed(2).replace('.', ',')}`}
+                    placeholderTextColor={theme.colors.text.muted}
+                    style={[
+                      styles.customPercentInput,
+                      { color: theme.colors.text.primary },
+                    ]}
+                  />
+                  <Text style={[theme.typography.body, { color: theme.colors.text.secondary, fontWeight: '700', marginRight: 12 }]}>
+                    {currency}
+                  </Text>
+                </View>
+
+                {isAmountExceedingTotal && (
+                  <Text
+                    style={[
+                      theme.typography.caption,
+                      { color: theme.colors.status.overrun, marginBottom: 12 },
+                    ]}
+                  >
+                    Ne peut pas dépasser {formatCurrency(totalSelectedAmount, currency)}
+                  </Text>
+                )}
+              </>
+            )}
 
             {/* Results Display */}
             <View
@@ -1295,7 +1531,7 @@ export default function TransactionsScreen() {
             >
               <View style={styles.calcResultRow}>
                 <Text style={[theme.typography.caption, { color: theme.colors.pillar.savings, fontWeight: '600' }]}>
-                  Montant à rembourser ({refundPercent || 0} %)
+                  Montant à rembourser ({equivalentPercent} %)
                 </Text>
                 <Text
                   style={[
@@ -1344,17 +1580,32 @@ export default function TransactionsScreen() {
                 onPress={handleApplyBatchRefund}
                 style={[
                   styles.calcActionBtn,
-                  { backgroundColor: theme.colors.pillar.savings, borderRadius: theme.radii.md },
+                  {
+                    backgroundColor: isAmountExceedingTotal
+                      ? theme.colors.bg.surfaceSubtle
+                      : theme.colors.pillar.savings,
+                    borderRadius: theme.radii.md,
+                    opacity: isAmountExceedingTotal ? 0.5 : 1,
+                  },
                 ]}
               >
-                <RotateCcw size={16} color="#FFFFFF" />
-                <Text style={[theme.typography.body, { color: '#FFFFFF', fontWeight: '700', marginLeft: 6 }]}>
+                <RotateCcw size={16} color={isAmountExceedingTotal ? theme.colors.text.muted : '#FFFFFF'} />
+                <Text
+                  style={[
+                    theme.typography.body,
+                    {
+                      color: isAmountExceedingTotal ? theme.colors.text.muted : '#FFFFFF',
+                      fontWeight: '700',
+                      marginLeft: 6,
+                    },
+                  ]}
+                >
                   Appliquer aux opérations
                 </Text>
               </Pressable>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Transaction Details / Edit Modal */}
@@ -1675,7 +1926,7 @@ const styles = StyleSheet.create({
   },
   calcModalSheet: {
     padding: 20,
-    borderTopWidth: 1,
+    borderWidth: 1,
   },
   calcModalHeader: {
     flexDirection: 'row',
@@ -1690,6 +1941,17 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     alignItems: 'center',
+  },
+  modeSegmentedContainer: {
+    flexDirection: 'row',
+    padding: 3,
+    marginTop: 14,
+  },
+  modeSegmentedBtn: {
+    flex: 1,
+    paddingVertical: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   presetPercentRow: {
     flexDirection: 'row',

@@ -1,17 +1,17 @@
-# 🚀 Wallou — Version 1.3.8
+# 🚀 Wallou — Version 1.3.9
 
-Bienvenue sur la mise à jour **1.3.8** de **Wallou** !
+Bienvenue sur la mise à jour **1.3.9** de **Wallou** !
 
 ---
 
-## 🌟 Nouveautés & Améliorations de la Version 1.3.8
+## 🌟 Nouveautés & Améliorations de la Version 1.3.9
 
-### 📅 Opérations filtrées par mois & Navigateur de période
-* **Filtrage automatique par mois actif** : La liste des opérations affiche désormais exclusivement les transactions du mois budgétaire sélectionné (par exemple, lors de la consultation d'octobre, les opérations d'aujourd'hui appartenant au cycle de novembre ne viennent plus polluer la liste).
-* **Navigateur de période intégré** : Un sélecteur avec flèches (`<` et `>`), le nom du mois et les dates exactes du cycle budgétaire est présent en haut de l'écran « Opérations ». Vous pouvez naviguer d'un mois à l'autre en un tap, en parfaite synchronisation avec la page d'accueil.
-* **Bascule « Tous / Ce mois » & Grosse délimitation** : Un bouton permet de basculer sur l'historique complet de toutes les opérations. Dans ce mode global, chaque cycle mensuel est séparé par un encadré de délimitation bien visible précisant le mois et la plage de dates correspondante.
+### 💶 Remboursement groupé : Choix par Montant ou par Pourcentage
+* **Sélecteur de mode intégré** : Lors de la sélection de plusieurs dépenses, le calculateur de remboursement propose désormais un sélecteur segmenté fluide **Pourcentage (%)** / **Montant (€)** fidèle à la direction artistique de Wallou.
+* **Répartition proportionnelle exacte** : En mode **Montant**, saisissez directement le montant total remboursé (ou utilisez les raccourcis *25 %*, *Moitié*, *75 %*, *Total*). Le montant est réparti proportionnellement sur chaque dépense sélectionnée au centime près, avec affichage en temps réel du pourcentage équivalent et du reste à votre charge.
+* **Conversion fluide entre modes** : Passer de *Pourcentage* à *Montant* (et inversement) conserve et convertit automatiquement la valeur saisie, avec gestion optimisée du clavier.
 
 ---
 
 ### 📱 Installation de l'APK Android
-Téléchargez le fichier `Wallou-v1.3.8.apk` ci-dessous et installez-le directement sur votre appareil Android.
+Téléchargez le fichier `Wallou-v1.3.9.apk` ci-dessous et installez-le directement sur votre appareil Android.
