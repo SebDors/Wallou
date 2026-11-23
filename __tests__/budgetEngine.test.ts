@@ -1,6 +1,7 @@
 import {
   calculateAllocations,
   calculateBudgetPeriodSummary,
+  distributeBatchRefund,
   formatCurrency,
   formatPeriodSubLabel,
   getCurrentPeriodKeyForDay,
@@ -607,6 +608,44 @@ describe('budgetEngine', () => {
       const formattedNeg = formatCurrency(-50, '€', 'fr-FR');
       expect(formattedNeg).toContain('-50,00');
       expect(formattedNeg).toContain('€');
+    });
+  });
+
+  describe('distributeBatchRefund', () => {
+    it('distributes an exact amount proportionally across expenses', () => {
+      const result = distributeBatchRefund(
+        [
+          { id: 'a', amount: 60 },
+          { id: 'b', amount: 40 },
+        ],
+        25
+      );
+      expect(result).toEqual({ a: 15, b: 10 });
+    });
+
+    it('reconciles cent rounding drift so the total matches the target amount exactly', () => {
+      const result = distributeBatchRefund(
+        [
+          { id: 'a', amount: 10 },
+          { id: 'b', amount: 10 },
+          { id: 'c', amount: 10 },
+        ],
+        10
+      );
+      const sum = round2(result.a + result.b + result.c);
+      expect(sum).toBe(10);
+      expect(result.a).toBeLessThanOrEqual(10);
+      expect(result.b).toBeLessThanOrEqual(10);
+      expect(result.c).toBeLessThanOrEqual(10);
+    });
+
+    it('clamps target refund to total expenses and handles zero/empty safely', () => {
+      expect(distributeBatchRefund([], 50)).toEqual({});
+      expect(distributeBatchRefund([{ id: 'a', amount: 20 }], 0)).toEqual({ a: 0 });
+      expect(distributeBatchRefund([{ id: 'a', amount: 20 }, { id: 'b', amount: 30 }], 100)).toEqual({
+        a: 20,
+        b: 30,
+      });
     });
   });
 });

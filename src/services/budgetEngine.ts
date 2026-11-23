@@ -364,3 +364,55 @@ export function formatCurrency(
 
   return `${formattedNumber} ${currency}`;
 }
+
+/**
+ * Distributes a target refund amount proportionally across a list of expenses,
+ * ensuring exact cent-level sum matching without exceeding any individual expense amount.
+ */
+export function distributeBatchRefund(
+  expenses: Array<{ id: string; amount: number }>,
+  targetRefundAmount: number
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  if (!expenses || expenses.length === 0) return result;
+
+  const totalAmount = round2(expenses.reduce((sum, e) => sum + Math.max(0, e.amount || 0), 0));
+  const clampedTarget = round2(Math.max(0, Math.min(totalAmount, targetRefundAmount || 0)));
+
+  if (totalAmount <= 0 || clampedTarget <= 0) {
+    for (const e of expenses) result[e.id] = 0;
+    return result;
+  }
+
+  let runningSum = 0;
+  for (const e of expenses) {
+    const safeAmt = Math.max(0, e.amount || 0);
+    const share = round2(Math.min(safeAmt, (safeAmt / totalAmount) * clampedTarget));
+    result[e.id] = share;
+    runningSum = round2(runningSum + share);
+  }
+
+  let diffCents = Math.round((clampedTarget - runningSum) * 100);
+  if (diffCents !== 0) {
+    const step = diffCents > 0 ? 0.01 : -0.01;
+    const sorted = [...expenses].sort((a, b) => (b.amount || 0) - (a.amount || 0));
+    let safety = sorted.length * 2;
+    while (diffCents !== 0 && safety > 0) {
+      let changed = false;
+      for (const e of sorted) {
+        if (diffCents === 0) break;
+        const safeAmt = Math.max(0, e.amount || 0);
+        const nextVal = round2(result[e.id] + step);
+        if (nextVal >= 0 && nextVal <= safeAmt) {
+          result[e.id] = nextVal;
+          diffCents += diffCents > 0 ? -1 : 1;
+          changed = true;
+        }
+      }
+      if (!changed) break;
+      safety--;
+    }
+  }
+
+  return result;
+}
